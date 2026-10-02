@@ -98,6 +98,7 @@ Tambahkan script berikut ke `package.json`:
 | `id` | integer | Primary key |
 | `type` | text | `LOMBA` atau `EVENT` |
 | `title` | text | Nama kegiatan |
+| `organizer` | text nullable | Penyelenggara atau penanggung jawab |
 | `slug` | text unique | URL publik |
 | `description` | text nullable | Deskripsi |
 | `image` | text nullable | Path gambar dari direktori `public` |
@@ -327,7 +328,7 @@ Frontend hanya menampilkan hasil tersebut dan tidak menentukan kelayakan pendaft
 
 ## 8. Tahapan Implementasi
 
-### Fase 1 - Fondasi Database dan Konfigurasi
+### Fase 1 - Fondasi Database dan Konfigurasi (selesai)
 
 - Tambahkan dependency dengan pnpm.
 - Tambahkan konfigurasi environment:
@@ -338,7 +339,7 @@ Frontend hanya menampilkan hasil tersebut dan tidak menentukan kelayakan pendaft
 - Seed satu akun `SUPER_ADMIN`; password dibaca dari environment dan tidak ditulis di repository.
 - Tambahkan `.env.example` tanpa nilai rahasia.
 
-### Fase 2 - Autentikasi dan Otorisasi
+### Fase 2 - Autentikasi dan Otorisasi (selesai)
 
 - Pasang `nuxt-auth-utils` di konfigurasi Nuxt.
 - Implementasikan login, logout, session, hashing Argon2, dan pembatasan login.
@@ -346,14 +347,14 @@ Frontend hanya menampilkan hasil tersebut dan tidak menentukan kelayakan pendaft
 - Buat utilitas server untuk pemeriksaan role dan akses kegiatan.
 - Pastikan seluruh endpoint mutasi hanya menerima JSON same-origin dan menolak origin yang tidak sesuai.
 
-### Fase 3 - Manajemen Pengguna
+### Fase 3 - Manajemen Pengguna (selesai)
 
 - Buat daftar, tambah, edit, aktivasi/nonaktifkan, dan reset password pengguna.
 - Email harus unik dan dinormalisasi.
 - Super admin tidak boleh menonaktifkan akun sendiri.
 - Penghapusan permanen pengguna tidak disediakan agar histori tetap utuh.
 
-### Fase 4 - Manajemen Kegiatan
+### Fase 4 - Manajemen Kegiatan (selesai)
 
 - Buat CRUD kegiatan `LOMBA` dan `EVENT`.
 - Buat editor periode pendaftaran, waktu kegiatan, mode peserta, kuota, dan field tambahan.
@@ -361,7 +362,7 @@ Frontend hanya menampilkan hasil tersebut dan tidak menentukan kelayakan pendaft
 - Buat penugasan banyak operator ke banyak kegiatan.
 - Gambar menggunakan path file yang sudah tersedia di `public`; upload file tidak termasuk cakupan tahap ini.
 
-### Fase 5 - Pendaftaran Publik
+### Fase 5 - Pendaftaran Publik (selesai)
 
 - Buat katalog `/kegiatan` dengan filter lomba/event dan status pendaftaran.
 - Buat detail `/kegiatan/[slug]`.
@@ -369,7 +370,7 @@ Frontend hanya menampilkan hasil tersebut dan tidak menentukan kelayakan pendaft
 - Implementasikan transaksi kuota, pencegahan duplikasi, kode pendaftaran, dan halaman konfirmasi.
 - Tampilkan pesan kegagalan yang spesifik untuk belum dibuka, sudah ditutup, penuh, duplikat, dan data tidak valid.
 
-### Fase 6 - Pengelolaan Pendaftar
+### Fase 6 - Pengelolaan Pendaftar (selesai)
 
 - Buat ringkasan dashboard sesuai scope pengguna.
 - Buat daftar pendaftar per kegiatan dengan pencarian nama, email, telepon, kode, dan filter status.
@@ -377,7 +378,7 @@ Frontend hanya menampilkan hasil tersebut dan tidak menentukan kelayakan pendaft
 - Catat operator dan waktu verifikasi.
 - Pastikan perubahan ke `REJECTED` atau `CANCELLED` langsung memperbarui kuota tersisa.
 
-### Fase 7 - Integrasi dengan Halaman Saat Ini
+### Fase 7 - Integrasi dengan Halaman Saat Ini (selesai)
 
 - Pertahankan visual dan perilaku `app/pages/index.vue` serta `app/pages/timeline.vue`.
 - Tambahkan tombol menuju katalog kegiatan tanpa mengganti struktur data roadmap yang sudah ada.

@@ -22,6 +22,9 @@
           <span class="mt-2 block text-[9px] uppercase tra  cking-[.2em] text-[#b9cbc5] sm:text-[10px]">{{ unit.label }}</span>
         </div>
       </div>
+      <NuxtLink class="catalog-cta reveal delay-3" to="/kegiatan">
+        Lihat katalog kegiatan <span aria-hidden="true">↗</span>
+      </NuxtLink>
       <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">{{ eventStatus }}</p>
     </section>
 
@@ -36,6 +39,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import hsnLogo from '~/assets/images/hsn2026.webp'
+import { formatIndonesiaDate } from '~/utils/date'
 
 useHead({
   link: [
@@ -91,8 +95,7 @@ onUnmounted(() => window.clearInterval(countdownInterval))
 
 const tanggal = ref(null)
 onMounted(() => {
-  const options = { year: 'numeric', month: 'long', day: 'numeric' }
-  tanggal.value = new Date(targetDate).toLocaleDateString('id-ID', options)
+  tanggal.value = formatIndonesiaDate(new Date(targetDate))
 })
 </script>
 
@@ -128,6 +131,36 @@ onMounted(() => {
 
 .eyebrow { letter-spacing: .27em; }
 .count { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+.catalog-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  margin-top: -72px;
+  padding: 0 18px;
+  border: 1px solid rgba(233, 183, 79, .55);
+  border-radius: 999px;
+  color: #f4f1e9;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: background-color .2s ease, border-color .2s ease, color .2s ease;
+}
+
+.catalog-cta:hover,
+.catalog-cta:focus-visible {
+  border-color: #e9b74f;
+  background: rgba(233, 183, 79, .12);
+  color: #e9b74f;
+}
+
+.catalog-cta:focus-visible {
+  outline: 2px solid #e9b74f;
+  outline-offset: 5px;
+}
 
 @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes logoReveal { from { opacity: 0; transform: translateY(20px) scale(.96); filter: blur(8px); } to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }

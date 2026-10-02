@@ -8,7 +8,7 @@
         Kembali
       </NuxtLink>
       <p class="header-label">PCNU Trenggalek</p>
-      <span class="header-mark" aria-hidden="true">HSN / 2026</span>
+      <NuxtLink class="catalog-link" to="/kegiatan">Katalog kegiatan <span aria-hidden="true">↗</span></NuxtLink>
     </header>
 
     <section class="timeline-intro" aria-labelledby="agenda-title">
@@ -19,6 +19,9 @@
         </div>
         <span class="section-count">{{ String(timelineItems.length).padStart(2, '0') }} agenda</span>
       </div>
+
+      <p v-if="pending" class="timeline-note">Memuat agenda dari katalog kegiatan...</p>
+      <p v-else-if="error" class="timeline-note">Agenda belum dapat dimuat. Silakan coba lagi.</p>
 
       <div class="roadmap" aria-label="Roadmap kegiatan Hari Santri Nasional 2026">
         <section v-for="(group, groupIndex) in timelineGroups" :key="group.key" class="roadmap-group">
@@ -50,9 +53,15 @@
                   <span class="agenda-status" :class="`is-${item.tone}`">{{ item.pj }}</span>
                   <span class="agenda-time">{{ item.time || 'Waktu menyusul' }}</span>
                 </div>
-                <h3>{{ item.title }}</h3>
+                <NuxtLink v-if="item.slug" class="agenda-title-link" :to="`/kegiatan/${item.slug}`">
+                  <h3>{{ item.title }}</h3>
+                </NuxtLink>
+                <h3 v-else>{{ item.title }}</h3>
                 <p>{{ item.description || 'Detail kegiatan akan diumumkan.' }}</p>
-                <span class="agenda-location">{{ item.location }}</span>
+                <div class="agenda-footer">
+                  <span class="agenda-location">{{ item.location }}</span>
+                  <span class="agenda-detail">Detail <span aria-hidden="true">↗</span></span>
+                </div>
               </li>
             </ol>
           </div>
@@ -67,9 +76,9 @@
   </main>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
-import hsnLogo from '~/assets/images/hsn2026.webp'
+import { formatIndonesiaDateRange } from '~/utils/date'
 
 useHead({
   link: [
@@ -84,183 +93,43 @@ useHead({
   title: 'Timeline Kegiatan - Hari Santri 2026'
 })
 
-const timelineItems = [
-  {
-    time: '09.00 - 12.00 WIB',
-    date: '11 Oktober 2026',
-    datetime: '2026-10-11',
-    pj: 'PCNU',
-    title: 'Kick Off Hari Santri Nasional 2026',
-    description: 'Bersamaan dengan Naharul Ijtima` PCNU Trenggalek',
-    location: 'Slawe, Watulimo',
-  },
-  {
-    time: '08.00 - 12.00 WIB',
-    date: '15 Oktober 2026',
-    datetime: '2026-10-15',
-    pj: 'LP Ma\'arif NU',
-    title: 'Seminar LP Ma`arif NU',
-    description: 'Seminar pendidikan dan penguatan karakter santri di era digital.',
-    location: 'Ngulanwetan, Pogalan',
-    image: '/images/timeline/sakoma.jpeg',
-  },
-  {
-    time: '12.00 WIB - selesai',
-    date: '15-21 Oktober 2026',
-    datetime: '2026-10-15',
-    pj: 'LP Ma\'arif NU',
-    title: 'KMD (Kursus Mahir Dasar) LP Ma`arif NU',
-    description: 'Pelatihan kepemimpinan dan manajemen pesantren bagi santri dan pengurus pondok pesantren.',
-    location: 'Ngulanwetan, Pogalan',
-    image: '/images/timeline/sakoma.jpeg'
-  },
-  {
-    time: '07:00 WIB',
-    date: '22 Oktober 2026',
-    datetime: '2026-10-22',
-    pj: 'PCNU',
-    title: 'Apel Hari Santri Nasional 2026',
-    description: 'Apel peringatan Hari Santri Nasional 2026 di Kabupaten Trenggalek dengan tema "Santri Menguatkan Negeri".',
-    location: 'Aloon Aloon Trenggalek',
-    image: '/images/timeline/apel.webp'
-  },
-  {
-    time: '06:00 - 12:00 WIB',
-    date: '25 Oktober 2026',
-    datetime: '2026-10-25',
-    pj: 'Muslimat NU',
-    title: 'Khotmil Qur`an',
-    description: 'Kegiatan khotmil Qur`an bersama Muslimat NU Trenggalek dalam rangka memperingati Hari Santri Nasional 2026.',
-    location: 'PP. Anwarul Haromain, Baruharjo, Durenan',
-    image: '/images/timeline/muslimat-khotmil.webp'
-  },
-  {
-    time: '19:00 WIB - selesai',
-    image: '/images/timeline/gus_salsaladin.webp',
-    date: '25 Oktober 2026',
-    datetime: '2026-10-25',
-    pj: 'PCNU',
-    title: 'Opening Ceremony bersama Gus Salsaladin',
-    description: 'Acara pembukaan peringatan Hari Santri Nasional 2026 dengan menghadirkan Gus Salsaladin sebagai pembicara utama.',
-    location: 'Venue Utama, Aloon Aloon Trenggalek',
-    imageZoom: 1,
-    imagePosition: 'left top'
-  },
-  {
-    date: '26 Oktober 2026',
-    datetime: '2026-10-26',
-    pj: 'PCNU',
-    title: 'Musik Religi bersama Silvi Kumalasari',
-    description: 'Penampilan musik religi oleh Silvi Kumalasari untuk memeriahkan peringatan Hari Santri Nasional 2026.',
-    location: 'Venue Utama, Aloon Aloon Trenggalek',
-    image: '/images/timeline/silvi.webp',
-    imageZoom: 1.2,
-    imagePosition: 'left top',
-    time: '19:00 WIB - selesai'
+type PublicActivity = {
+  type: 'LOMBA' | 'EVENT'
+  title: string
+  organizer: string | null
+  slug: string
+  description: string | null
+  image: string | null
+  imageZoom: number
+  imagePosition: string
+  location: string | null
+  startsAt: string
+  endsAt: string | null
+}
 
-  },
-  {
-    date: '27 Oktober 2026',
-    datetime: '2026-10-27',
-    pj: 'PERGUNU',
-    title: 'Sarasehan',
-    description: 'Diskusi dan sarasehan bersama PERGUNU Trenggalek mengenai peran santri dalam pembangunan bangsa.',
-    location: 'Aula Kemenag Trenggalek',
-    image: '/images/timeline/pergunu-seminar.webp',
-    time: '09:00 - 12:00 WIB'
-  },
-  {
-    date: '27 Oktober 2026',
-    datetime: '2026-10-27',
-    pj: 'PCNU',
-    title: 'Gus Fauzy bersama Hamid Uye & Amor Rosul',
-    description: 'Penampilan musik dan tausiyah oleh Gus Fauzy, Hamid Uye, dan Amor Rosul untuk menutup rangkaian peringatan Hari Santri Nasional 2026.',
-    location: 'Venue Utama, Aloon Aloon Trenggalek'
-  },
-  {
-    date: '28 Oktober 2026',
-    datetime: '2026-10-28',
-    pj: 'PSNU PN',
-    title: 'Seni Pencak Silat',
-    description: 'Pertunjukan seni pencak silat oleh PSNU PN Trenggalek sebagai bagian dari peringatan Hari Santri Nasional 2026.',
-    location: 'Aloon Aloon Trenggalek'
-  },
-  {
-    date: '29 Oktober 2026',
-    datetime: '2026-10-28',
-    pj: 'Muslimat NU',
-    title: 'Senam Masal & Lomba Tari Islami (PAUD)',
-    description: '',
-    location: 'Venue Utama, Aloon Aloon Trenggalek'
-  },
-  {
-    date: '29 Oktober 2026',
-    datetime: '2026-10-28',
-    pj: 'PCNU',
-    title: 'Jaljalut & Gus Badar',
-    description: '',
-    location: 'Venue Utama, Aloon Aloon Trenggalek'
-  },
-  {
-    date: '30 Oktober 2026',
-    datetime: '2026-10-30',
-    pj: 'PCNU',
-    title: 'Musik Religi bersama Cak Shodiq',
-    description: '',
-    location: 'Venue Utama, Aloon Aloon Trenggalek'
-  },
-  {
-    date: '31 Oktober 2026',
-    datetime: '2026-10-31',
-    pj: 'Fatayat NU',
-    title: 'Festival Budaya',
-    description: 'Festival budaya dan seni tradisional yang menampilkan berbagai pertunjukan dari komunitas lokal.',
-    location: 'Venue Utama, Aloon Aloon Trenggalek'
-  },
-  {
-    date: '31 Oktober 2026',
-    datetime: '2026-10-31',
-    pj: 'ISHARI',
-    title: 'ISHARI (Ikatan Seni Hadrah RI)',
-    description: 'Pertunjukan seni hadrah oleh ISHARI Trenggalek sebagai bagian dari peringatan Hari Santri Nasional 2026.',
-    location: 'Venue Utama, Aloon Aloon Trenggalek'
-  },
-  {
-    date: '01 November 2026',
-    datetime: '2026-11-01',
-    pj: 'PCNU',
-    title: 'Jalan Sehat Santri Sarungan & Zanjabil Gambus',
-    description: 'Kegiatan jalan sehat bersama santri dan penampilan musik Zanjabil Gambus untuk menutup rangkaian peringatan Hari Santri Nasional 2026.',
-    location: 'Venue Utama, Aloon Aloon Trenggalek'
-  },
-  {
-    date: '01 November 2026',
-    datetime: '2026-11-01',
-    pj: 'IPNU & IPPNU',
-    title: 'Festival Sholawat',
-    description: 'Festival sholawat dan lomba hadrah yang diikuti oleh berbagai komunitas santri dari seluruh Kabupaten Trenggalek.',
-    location: 'Venue Utama, Aloon Aloon Trenggalek'
-  },
-  {
-    date: '02 November 2026',
-    datetime: '2026-11-02',
-    pj: 'PCNU',
-    title: 'An Najaa Indonesia',
-    description: 'Pertunjukan musik religi oleh An Najaa Indonesia untuk menutup rangkaian peringatan Hari Santri Nasional 2026.',
-    location: 'Venue Utama, Aloon Aloon Trenggalek'
-  },
-  {
-    date: '02 November 2026',
-    datetime: '2026-11-02',
-    pj: 'PCNU',
-    title: 'Istighotzah',
-    description: 'Acara penutupan resmi peringatan Hari Santri Nasional 2026 oleh PCNU Trenggalek.',
-    location: 'Venue Utama, Aloon Aloon Trenggalek'
-  }
+const { data: activitiesData, pending, error } = await useFetch<{ activities: PublicActivity[] }>('/api/public/activities')
+const timeFormatter = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' })
+const formatDateRange = (startsAt: string, endsAt: string | null): string => {
+  return formatIndonesiaDateRange(startsAt, endsAt)
+}
+const formatTimeRange = (startsAt: string, endsAt: string | null): string => {
+  const start = `${timeFormatter.format(new Date(startsAt))} WIB`
+  return endsAt ? `${start}–${timeFormatter.format(new Date(endsAt))} WIB` : start
+}
 
-]
+const timelineItems = computed(() => {
+  const activities = activitiesData.value?.activities ?? []
+  return activities.map(activity => ({
+    ...activity,
+    date: formatDateRange(activity.startsAt, activity.endsAt),
+    datetime: activity.startsAt.slice(0, 10),
+    time: formatTimeRange(activity.startsAt, activity.endsAt),
+    pj: activity.organizer || activity.type,
+    tone: activity.type === 'LOMBA' ? 'teal' : 'gold'
+  }))
+})
 
-const timelineGroups = computed(() => timelineItems.reduce((groups, item) => {
+const timelineGroups = computed(() => timelineItems.value.reduce((groups, item) => {
   const group = groups.find((entry) => entry.key === item.date)
 
   if (group) {
@@ -375,6 +244,36 @@ const timelineGroups = computed(() => timelineItems.reduce((groups, item) => {
   font-size: 16px;
   line-height: 0;
   transition: transform .25s ease;
+}
+
+.catalog-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  color: #f4f1e9;
+  text-decoration: none;
+  transition: color .2s ease;
+}
+
+.catalog-link:hover,
+.catalog-link:focus-visible,
+.agenda-title-link:hover,
+.agenda-title-link:focus-visible {
+  color: #e9b74f;
+}
+
+.catalog-link:focus-visible,
+.agenda-title-link:focus-visible {
+  outline: 2px solid #e9b74f;
+  outline-offset: 5px;
+  border-radius: 3px;
+}
+
+.timeline-note {
+  margin: 20px 0 0;
+  color: rgba(203, 217, 212, .72);
+  font-size: 13px;
 }
 
 .back-link:hover span {
@@ -611,12 +510,33 @@ const timelineGroups = computed(() => timelineItems.reduce((groups, item) => {
   letter-spacing: -.035em;
 }
 
+.agenda-title-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
 .roadmap-event p {
   min-height: 44px;
   margin: 0;
   color: rgba(203, 217, 212, .67);
   font-size: 12px;
   line-height: 1.6;
+}
+
+.agenda-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.agenda-detail {
+  color: #e9b74f;
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
 }
 
 .agenda-location {

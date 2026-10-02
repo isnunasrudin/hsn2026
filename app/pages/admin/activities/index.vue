@@ -1,0 +1,349 @@
+<script setup lang="ts">
+import { formatIndonesiaDateRange, formatIndonesiaDateTime } from '~/utils/date'
+
+type ActivityType = 'LOMBA' | 'EVENT'
+type ActivityStatus = 'DRAFT' | 'PUBLISHED' | 'CLOSED' | 'CANCELLED'
+type RegistrationMode = 'INDIVIDUAL' | 'TEAM'
+type QuotaMode = 'REGISTRATION' | 'PERSON'
+type RegistrationFieldType = 'text' | 'textarea' | 'number' | 'select' | 'radio' | 'checkbox' | 'file'
+
+type RegistrationField = {
+  key: string
+  label: string
+  type: RegistrationFieldType
+  required: boolean
+  options?: string[]
+  accept?: string
+}
+
+type ActivityRecord = {
+  id: number
+  type: ActivityType
+  title: string
+  organizer: string | null
+  slug: string
+  description: string | null
+  image: string | null
+  imageZoom: number
+  imagePosition: string
+  displayOrder: number
+  location: string | null
+  startsAt: string
+  endsAt: string | null
+  registrationOpensAt: string
+  registrationClosesAt: string
+  registrationMode: RegistrationMode
+  quotaMode: QuotaMode
+  capacity: number | null
+  minTeamMembers: number | null
+  maxTeamMembers: number | null
+  registrationFields: RegistrationField[]
+  status: ActivityStatus
+}
+
+type OperatorRecord = { id: number; name: string; email: string; role: 'SUPER_ADMIN' | 'OPERATOR' }
+type ApiError = { data?: { statusMessage?: string } }
+
+definePageMeta({ middleware: 'auth', layout: 'admin' })
+
+const { user } = useUserSession()
+const { data, pending, error, refresh } = await useFetch<{ activities: ActivityRecord[] }>('/api/admin/activities')
+const { data: usersData } = await useFetch<{ users: OperatorRecord[] }>('/api/admin/users', { immediate: user.value?.role === 'SUPER_ADMIN' })
+
+const isCreateOpen = ref(false)
+const isSubmitting = ref(false)
+const feedback = ref('')
+const errorMessage = ref('')
+const editingId = ref<number | null>(null)
+const deleteId = ref<number | null>(null)
+const deleteTitle = ref('')
+const isDeleting = ref(false)
+const selectedOperatorIds = ref<number[]>([])
+const filters = reactive({ q: '', type: 'ALL' as ActivityType | 'ALL', status: 'ALL' as ActivityStatus | 'ALL' })
+
+const form = reactive({
+  type: 'EVENT' as ActivityType,
+  title: '',
+  organizer: '',
+  slug: '',
+  description: '',
+  image: '',
+  imageZoom: 1,
+  imagePosition: 'right center',
+  displayOrder: 0,
+  location: '',
+  startsAt: '',
+  endsAt: '',
+  registrationOpensAt: '',
+  registrationClosesAt: '',
+  registrationMode: 'INDIVIDUAL' as RegistrationMode,
+  quotaMode: 'REGISTRATION' as QuotaMode,
+  capacity: '',
+  minTeamMembers: '',
+  maxTeamMembers: '',
+  status: 'DRAFT' as ActivityStatus,
+  registrationFields: [] as RegistrationField[]
+})
+
+const activities = computed(() => data.value?.activities ?? [])
+const filteredActivities = computed(() => {
+  const query = filters.q.trim().toLowerCase()
+  return activities.value.filter((activity) => {
+    const matchesQuery = !query || `${activity.title} ${activity.slug} ${activity.organizer ?? ''} ${activity.location ?? ''}`.toLowerCase().includes(query)
+    const matchesType = filters.type === 'ALL' || activity.type === filters.type
+    const matchesStatus = filters.status === 'ALL' || activity.status === filters.status
+    return matchesQuery && matchesType && matchesStatus
+  })
+})
+const operators = computed(() => (usersData.value?.users ?? []).filter(operator => operator.role === 'OPERATOR'))
+const selectedActivity = computed(() => activities.value.find(activity => activity.id === editingId.value) ?? null)
+const isRegistrationActivity = computed(() => form.type === 'LOMBA')
+
+const clearMessages = (): void => {
+  feedback.value = ''
+  errorMessage.value = ''
+}
+
+const errorText = (error: unknown): string => {
+  const apiError = error as ApiError
+  return apiError.data?.statusMessage ?? 'Perubahan kegiatan tidak dapat disimpan.'
+}
+
+const toLocalInput = (value: string | null): string => {
+  if (!value) return ''
+  const date = new Date(value)
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+  return offsetDate.toISOString().slice(0, 16)
+}
+
+const toIso = (value: string): string => new Date(value).toISOString()
+
+const eventRegistrationWindow = (): { opensAt: string; closesAt: string } => {
+  const startsAt = new Date(form.startsAt)
+  const endsAt = form.endsAt ? new Date(form.endsAt) : new Date(startsAt.getTime() + 60 * 60 * 1000)
+  const closesAt = endsAt.getTime() > startsAt.getTime() ? endsAt : new Date(startsAt.getTime() + 60 * 60 * 1000)
+  return { opensAt: startsAt.toISOString(), closesAt: closesAt.toISOString() }
+}
+
+const resetForm = (): void => {
+  form.type = 'EVENT'
+  form.title = ''
+  form.organizer = ''
+  form.slug = ''
+  form.description = ''
+  form.image = ''
+  form.imageZoom = 1
+  form.imagePosition = 'right center'
+  form.displayOrder = 0
+  form.location = ''
+  form.startsAt = ''
+  form.endsAt = ''
+  form.registrationOpensAt = ''
+  form.registrationClosesAt = ''
+  form.registrationMode = 'INDIVIDUAL'
+  form.quotaMode = 'REGISTRATION'
+  form.capacity = ''
+  form.minTeamMembers = ''
+  form.maxTeamMembers = ''
+  form.status = 'DRAFT'
+  form.registrationFields = []
+  selectedOperatorIds.value = []
+}
+
+const addRegistrationField = (): void => {
+  form.registrationFields.push({ key: `field_${form.registrationFields.length + 1}`, label: 'Field baru', type: 'text', required: false, options: [], accept: '' })
+}
+
+const removeRegistrationField = (index: number): void => {
+  form.registrationFields.splice(index, 1)
+}
+
+const updateFieldOptions = (field: RegistrationField, event: Event): void => {
+  const input = event.target
+  if (!(input instanceof HTMLInputElement)) return
+  field.options = input.value.split(',').map(option => option.trim()).filter(Boolean)
+}
+
+const payload = () => ({
+  type: form.type,
+  title: form.title,
+  organizer: form.organizer || null,
+  slug: form.slug,
+  description: form.description || null,
+  image: form.image || null,
+  imageZoom: Number(form.imageZoom),
+  imagePosition: form.imagePosition,
+  displayOrder: Number(form.displayOrder),
+  location: form.location || null,
+  startsAt: toIso(form.startsAt),
+  endsAt: form.endsAt ? toIso(form.endsAt) : null,
+  registrationOpensAt: isRegistrationActivity.value ? toIso(form.registrationOpensAt) : eventRegistrationWindow().opensAt,
+  registrationClosesAt: isRegistrationActivity.value ? toIso(form.registrationClosesAt) : eventRegistrationWindow().closesAt,
+  registrationMode: isRegistrationActivity.value ? form.registrationMode : 'INDIVIDUAL',
+  quotaMode: isRegistrationActivity.value ? form.quotaMode : 'REGISTRATION',
+  capacity: isRegistrationActivity.value && form.capacity ? Number(form.capacity) : null,
+  minTeamMembers: isRegistrationActivity.value && form.registrationMode === 'TEAM' && form.minTeamMembers ? Number(form.minTeamMembers) : null,
+  maxTeamMembers: isRegistrationActivity.value && form.registrationMode === 'TEAM' && form.maxTeamMembers ? Number(form.maxTeamMembers) : null,
+  registrationFields: isRegistrationActivity.value ? form.registrationFields : [],
+  status: form.status
+})
+
+const reload = async (): Promise<void> => {
+  await refresh()
+  editingId.value = null
+  isCreateOpen.value = false
+  deleteId.value = null
+}
+
+const closeEditor = (): void => {
+  editingId.value = null
+  isCreateOpen.value = false
+}
+
+const requestDelete = (activity: ActivityRecord): void => {
+  clearMessages()
+  deleteId.value = activity.id
+  deleteTitle.value = activity.title
+}
+
+const deleteActivity = async (): Promise<void> => {
+  if (!deleteId.value) return
+  isDeleting.value = true
+  clearMessages()
+
+  try {
+    await $fetch(`/api/admin/activities/${deleteId.value}`, { method: 'DELETE' })
+    feedback.value = 'Kegiatan berhasil dihapus.'
+    await reload()
+  } catch (error: unknown) {
+    errorMessage.value = errorText(error)
+  } finally {
+    isDeleting.value = false
+  }
+}
+
+const createActivity = async (): Promise<void> => {
+  clearMessages()
+  isSubmitting.value = true
+
+  try {
+    await $fetch('/api/admin/activities', { method: 'POST', body: payload() })
+    feedback.value = 'Kegiatan berhasil dibuat.'
+    resetForm()
+    await reload()
+  } catch (error: unknown) {
+    errorMessage.value = errorText(error)
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+const editActivity = async (activity: ActivityRecord): Promise<void> => {
+  clearMessages()
+  editingId.value = activity.id
+  isCreateOpen.value = false
+  form.type = activity.type
+  form.title = activity.title
+  form.organizer = activity.organizer ?? ''
+  form.slug = activity.slug
+  form.description = activity.description ?? ''
+  form.image = activity.image ?? ''
+  form.imageZoom = activity.imageZoom
+  form.imagePosition = activity.imagePosition
+  form.displayOrder = activity.displayOrder
+  form.location = activity.location ?? ''
+  form.startsAt = toLocalInput(activity.startsAt)
+  form.endsAt = toLocalInput(activity.endsAt)
+  form.registrationOpensAt = toLocalInput(activity.registrationOpensAt)
+  form.registrationClosesAt = toLocalInput(activity.registrationClosesAt)
+  form.registrationMode = activity.registrationMode
+  form.quotaMode = activity.quotaMode
+  form.capacity = activity.capacity?.toString() ?? ''
+  form.minTeamMembers = activity.minTeamMembers?.toString() ?? ''
+  form.maxTeamMembers = activity.maxTeamMembers?.toString() ?? ''
+  form.status = activity.status
+  form.registrationFields = activity.registrationFields.map(field => ({ ...field, options: field.options ? [...field.options] : [] }))
+
+  if (user.value?.role === 'SUPER_ADMIN') {
+    try {
+      const detail = await $fetch<{ operators: OperatorRecord[] }>(`/api/admin/activities/${activity.id}`)
+      selectedOperatorIds.value = detail.operators.map(operator => operator.id)
+    } catch (error: unknown) {
+      errorMessage.value = errorText(error)
+    }
+  }
+}
+
+const updateActivity = async (): Promise<void> => {
+  if (!selectedActivity.value) return
+
+  clearMessages()
+  isSubmitting.value = true
+
+  try {
+    await $fetch(`/api/admin/activities/${selectedActivity.value.id}`, { method: 'PATCH', body: payload() })
+    if (user.value?.role === 'SUPER_ADMIN') {
+      await $fetch(`/api/admin/activities/${selectedActivity.value.id}/operators`, { method: 'PUT', body: { userIds: selectedOperatorIds.value } })
+    }
+    feedback.value = 'Kegiatan berhasil diperbarui.'
+    await reload()
+  } catch (error: unknown) {
+    errorMessage.value = errorText(error)
+  } finally {
+    isSubmitting.value = false
+  }
+}
+</script>
+
+<template>
+  <section class="grid gap-6">
+    <header class="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+      <div>
+        <p class="text-[11px] font-semibold uppercase tracking-[.18em] text-[var(--hsn-accent-soft)]">Program HSN 2026</p>
+        <h1 class="mt-3 text-3xl font-semibold tracking-[-.035em] text-[var(--hsn-text-primary)] sm:text-4xl">Manajemen kegiatan.</h1>
+        <p class="mt-3 max-w-2xl text-base leading-7 text-[var(--hsn-text-secondary)]">Atur jadwal, periode pendaftaran, kuota, dan status publikasi kegiatan.</p>
+      </div>
+      <button class="admin-button admin-button-primary shrink-0" type="button" @click="isCreateOpen = true; editingId = null; resetForm()">Tambah kegiatan</button>
+    </header>
+
+    <p v-if="feedback" class="admin-status-active rounded-lg px-4 py-3 text-sm" role="status">{{ feedback }}</p>
+    <p v-if="errorMessage || error" class="admin-alert-error rounded-lg px-4 py-3 text-sm" role="alert">{{ errorMessage || 'Data kegiatan tidak dapat dimuat.' }}</p>
+
+    <AdminModal :open="isCreateOpen || editingId !== null" :title="editingId ? `Edit ${selectedActivity?.title}` : 'Kegiatan baru'" description="Tanggal menggunakan zona waktu perangkat pengelola." @close="closeEditor">
+    <form class="grid gap-5 sm:grid-cols-2" @submit.prevent="editingId ? updateActivity() : createActivity()">
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Jenis<select v-model="form.type" class="admin-input"><option value="EVENT">Event</option><option value="LOMBA">Lomba</option></select></label>
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Status<select v-model="form.status" class="admin-input"><option value="DRAFT">Draft</option><option value="PUBLISHED">Published</option><option value="CLOSED">Closed</option><option value="CANCELLED">Cancelled</option></select></label>
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)] sm:col-span-2">Judul<input v-model="form.title" class="admin-input" required type="text"></label>
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Penyelenggara / PJ<input v-model="form.organizer" class="admin-input" type="text" placeholder="PCNU Trenggalek"></label>
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Slug<input v-model="form.slug" class="admin-input" required type="text" placeholder="seminar-santri"></label>
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Lokasi<input v-model="form.location" class="admin-input" type="text" placeholder="Gedung PCNU Trenggalek"></label>
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)] sm:col-span-2">Path gambar publik<input v-model="form.image" class="admin-input" type="text" placeholder="/images/kegiatan.webp"></label>
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Zoom gambar<input v-model="form.imageZoom" class="admin-input" max="5" min="0.1" step="0.1" type="number"></label>
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Posisi gambar<input v-model="form.imagePosition" class="admin-input" type="text" placeholder="right center"></label>
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Urutan tampil<input v-model="form.displayOrder" class="admin-input" min="0" type="number"></label>
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)] sm:col-span-2">Deskripsi<textarea v-model="form.description" class="admin-input min-h-24" rows="3"></textarea></label>
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Mulai kegiatan<input v-model="form.startsAt" class="admin-input" required type="datetime-local"></label>
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Selesai kegiatan<input v-model="form.endsAt" class="admin-input" type="datetime-local"></label>
+      <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Pendaftaran dibuka<input v-model="form.registrationOpensAt" class="admin-input" required type="datetime-local"></label>
+      <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Pendaftaran ditutup<input v-model="form.registrationClosesAt" class="admin-input" required type="datetime-local"></label>
+      <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Mode peserta<select v-model="form.registrationMode" class="admin-input"><option value="INDIVIDUAL">Individu</option><option value="TEAM">Tim</option></select></label>
+      <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Mode kuota<select v-model="form.quotaMode" class="admin-input"><option value="REGISTRATION">Per pendaftaran</option><option value="PERSON">Per orang</option></select></label>
+      <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Kapasitas<input v-model="form.capacity" class="admin-input" min="1" type="number" placeholder="Kosong = tanpa batas"></label>
+      <template v-if="isRegistrationActivity && form.registrationMode === 'TEAM'"><label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Minimal anggota<input v-model="form.minTeamMembers" class="admin-input" min="1" required type="number"></label><label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Maksimal anggota<input v-model="form.maxTeamMembers" class="admin-input" min="1" required type="number"></label></template>
+      <div v-if="isRegistrationActivity" class="grid gap-3 sm:col-span-2"><div class="flex items-center justify-between gap-4"><div><p class="text-sm font-medium text-[var(--hsn-text-secondary)]">Field tambahan pendaftaran</p><p class="mt-1 text-xs text-[var(--hsn-text-muted)]">Field ini akan ditampilkan pada formulir publik.</p></div><button class="admin-button admin-button-secondary px-3 py-2 text-xs" type="button" @click="addRegistrationField">Tambah field</button></div><div v-for="(field, index) in form.registrationFields" :key="`${field.key}-${index}`" class="grid gap-3 rounded-lg border border-[var(--hsn-border-subtle)] p-4 sm:grid-cols-[1fr_1fr_160px_auto]"><label class="grid gap-2 text-xs text-[var(--hsn-text-muted)]">Key<input v-model="field.key" class="admin-input text-sm" required type="text" placeholder="asal_sekolah"></label><label class="grid gap-2 text-xs text-[var(--hsn-text-muted)]">Label<input v-model="field.label" class="admin-input text-sm" required type="text" placeholder="Asal sekolah"></label><label class="grid gap-2 text-xs text-[var(--hsn-text-muted)]">Tipe<select v-model="field.type" class="admin-input text-sm"><option value="text">Teks</option><option value="textarea">Paragraf</option><option value="number">Angka</option><option value="select">Pilihan</option><option value="radio">Radio</option><option value="checkbox">Checkbox</option><option value="file">File</option></select></label><div class="flex items-end gap-2"><label class="flex items-center gap-2 pb-3 text-xs text-[var(--hsn-text-secondary)]"><input v-model="field.required" type="checkbox"> Wajib</label><button class="admin-button admin-button-secondary px-3 py-2 text-xs" type="button" @click="removeRegistrationField(index)">Hapus</button></div><label v-if="['select', 'radio'].includes(field.type)" class="grid gap-2 text-xs text-[var(--hsn-text-muted)] sm:col-span-4">Pilihan, pisahkan dengan koma<input :value="field.options?.join(', ')" class="admin-input text-sm" type="text" @input="updateFieldOptions(field, $event)"></label><label v-if="field.type === 'file'" class="grid gap-2 text-xs text-[var(--hsn-text-muted)] sm:col-span-4">Format file<input v-model="field.accept" class="admin-input text-sm" type="text" placeholder=".pdf,image/*"></label></div></div>
+      <template v-if="user?.role === 'SUPER_ADMIN' && editingId"><div class="grid gap-2 sm:col-span-2"><p class="text-sm text-[var(--hsn-text-secondary)]">Operator kegiatan</p><div class="grid gap-2 rounded-lg border border-[var(--hsn-border-subtle)] p-4 sm:grid-cols-2"><label v-for="operator in operators" :key="operator.id" class="flex items-center gap-3 text-sm text-[var(--hsn-text-secondary)]"><input v-model="selectedOperatorIds" :value="operator.id" type="checkbox"><span>{{ operator.name }}<small class="ml-2 text-[var(--hsn-text-muted)]">{{ operator.email }}</small></span></label><p v-if="operators.length === 0" class="text-sm text-[var(--hsn-text-muted)]">Belum ada operator aktif.</p></div></div></template>
+      <div class="sm:col-span-2 flex justify-end gap-3"><button class="admin-button admin-button-secondary" type="button" @click="closeEditor">Batal</button><button class="admin-button admin-button-primary" type="submit" :disabled="isSubmitting">{{ isSubmitting ? 'Menyimpan...' : (editingId ? 'Simpan perubahan' : 'Simpan kegiatan') }}</button></div>
+    </form>
+    </AdminModal>
+
+    <AdminModal :open="deleteId !== null" title="Hapus kegiatan" description="Kegiatan, pendaftar, dan relasi operator akan dihapus permanen." @close="deleteId = null">
+      <div class="grid gap-5"><p class="text-sm leading-6 text-[var(--hsn-text-secondary)]">Anda akan menghapus <strong class="text-[var(--hsn-text-primary)]">{{ deleteTitle }}</strong>. Tindakan ini tidak dapat dibatalkan.</p><div class="flex justify-end gap-3"><button class="admin-button admin-button-secondary" type="button" @click="deleteId = null">Batal</button><button class="admin-button admin-button-danger" type="button" :disabled="isDeleting" @click="deleteActivity">{{ isDeleting ? 'Menghapus...' : 'Hapus kegiatan' }}</button></div></div>
+    </AdminModal>
+
+    <section class="admin-panel overflow-hidden" aria-labelledby="activity-list-title">
+      <div class="grid gap-4 border-b border-[var(--hsn-border-subtle)] p-5 sm:grid-cols-[minmax(0,1fr)_160px_180px_auto] sm:items-end sm:p-6"><label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Cari kegiatan<input v-model="filters.q" class="admin-input" type="search" placeholder="Judul, slug, penyelenggara..."></label><label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Jenis<select v-model="filters.type" class="admin-input"><option value="ALL">Semua jenis</option><option value="EVENT">Event</option><option value="LOMBA">Lomba</option></select></label><label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Status<select v-model="filters.status" class="admin-input"><option value="ALL">Semua status</option><option value="DRAFT">Draft</option><option value="PUBLISHED">Published</option><option value="CLOSED">Closed</option><option value="CANCELLED">Cancelled</option></select></label><button class="admin-button admin-button-secondary" type="button" @click="filters.q = ''; filters.type = 'ALL'; filters.status = 'ALL'">Reset</button></div>
+      <div class="border-b border-[var(--hsn-border-subtle)] px-5 py-4 sm:px-6"><h2 id="activity-list-title" class="text-lg font-semibold text-[var(--hsn-text-primary)]">Daftar kegiatan</h2><p class="mt-1 text-sm text-[var(--hsn-text-muted)]">{{ filteredActivities.length }} dari {{ activities.length }} kegiatan</p></div>
+      <div class="overflow-x-auto"><table class="admin-table w-full min-w-[960px] border-collapse"><thead><tr><th>Kegiatan</th><th>Jadwal</th><th>Pendaftaran</th><th>Status</th><th><span class="sr-only">Aksi</span></th></tr></thead><tbody><tr v-for="activity in filteredActivities" :key="activity.id"><td><p class="font-medium text-[var(--hsn-text-primary)]">{{ activity.title }}</p><p class="mt-1 text-sm text-[var(--hsn-text-muted)]">{{ activity.type }} · /{{ activity.slug }}</p></td><td class="text-sm text-[var(--hsn-text-secondary)]">{{ formatIndonesiaDateTime(activity.startsAt) }}</td><td class="text-sm text-[var(--hsn-text-secondary)]"><span v-if="activity.type === 'LOMBA'">{{ formatIndonesiaDateRange(activity.registrationOpensAt, activity.registrationClosesAt) }}</span><span v-else>Tanpa pendaftaran</span></td><td><span class="admin-badge-accent rounded-full px-2.5 py-1 text-xs font-semibold">{{ activity.status }}</span></td><td><div class="flex justify-end gap-2"><NuxtLink v-if="activity.type === 'LOMBA'" class="admin-button admin-button-secondary px-3 py-2 text-xs" :to="`/admin/registrations/${activity.id}`">Pendaftar</NuxtLink><button class="admin-button admin-button-secondary px-3 py-2 text-xs" type="button" @click="editActivity(activity)">Edit</button><button class="admin-button admin-button-danger px-3 py-2 text-xs" type="button" @click="requestDelete(activity)">Hapus</button></div></td></tr><tr v-if="!pending && filteredActivities.length === 0"><td class="py-12 text-center text-sm text-[var(--hsn-text-muted)]" colspan="5">Tidak ada kegiatan yang cocok.</td></tr><tr v-if="pending"><td class="py-12 text-center text-sm text-[var(--hsn-text-muted)]" colspan="5">Memuat kegiatan...</td></tr></tbody></table></div>
+    </section>
+  </section>
+</template>

@@ -1,72 +1,83 @@
-# HSN 2026 Coming Soon
+# HSN 2026 Design System
 
-## Direction
+## 1. Atmosphere & Identity
 
-Halaman tunggal dengan atmosfer futuristik "holographic observatory". Teal
-menjadi ruang gelap, logo HSN menjadi focal point bercahaya, dan gold menjadi
-aksen telemetry pada countdown. Grid perspektif, orbit, scanline, dan frame
-teknis memberi kedalaman tanpa menambah headline, deskripsi, atau tombol.
+Admin HSN adalah ruang kerja yang tenang dan terpercaya: latar teal gelap, aksen emas sebagai penanda aksi penting, dan panel transparan yang memberi kedalaman tanpa mengubah suasana identitas Hari Santri.
 
-## Tokens
+## 2. Color
 
-- `--color-teal-950`: `#043f40`, latar utama.
-- `--color-teal-700`: `#077d7f`, cahaya latar yang sangat halus.
-- `--color-gold-500`: `#d79219`, angka countdown dan detail divider.
-- `--color-cream`: `#fffaf0`, logo dan teks pendamping countdown.
-- `--color-cyan`: `#43e6e3`, garis grid dan glow sekunder.
-- `--color-ink`: `#021f20`, panel transparan.
-- `--font-display`: `Orbitron`, `Arial`, sans-serif, untuk angka countdown.
-- `--font-sans`: `Exo 2`, `Arial`, sans-serif, untuk label dan footer.
-- Spacing unit: 8px.
-- Countdown angka: clamp 2rem hingga 4.5rem, tabular numerals.
-- Motion: orbit 18s/28s linear dan pulse 4s ease-in-out; hanya transform,
-  opacity, serta filter yang dianimasikan.
+| Role | Token | Value | Usage |
+|---|---|---|---|
+| Surface primary | `--hsn-surface-primary` | `#071c1e` | Latar admin |
+| Surface secondary | `--hsn-surface-secondary` | `#0a292b` | Panel dan navigasi |
+| Surface elevated | `--hsn-surface-elevated` | `#124b4d` | Panel aktif |
+| Text primary | `--hsn-text-primary` | `#f4f1e9` | Judul dan isi utama |
+| Text secondary | `--hsn-text-secondary` | `#cbd9d4` | Keterangan |
+| Text muted | `--hsn-text-muted` | `#8fa8a0` | Metadata |
+| Accent primary | `--hsn-accent-primary` | `#e9a51e` | Tombol utama dan status aktif |
+| Accent soft | `--hsn-accent-soft` | `#e9b74f` | Label dan highlight |
+| Status success | `--hsn-status-success` | `#77c69b` | Sukses |
+| Status error | `--hsn-status-error` | `#f08b7c` | Error |
+| Border subtle | `--hsn-border-subtle` | `rgba(244,241,233,.14)` | Pemisah panel |
 
-## Primitives and states
+## 3. Typography
 
-- `ComingSoonShell`: viewport-height layout dengan atmospheric grid, logo di
-  pusat, countdown di bawahnya, dan footer yang selalu berada di dasar halaman.
-- `LogoStage`: focal point bercahaya dengan orbit dan scanline. Ornamen bersifat
-  dekoratif dan tidak masuk accessibility tree.
-- `CountdownBlock`: empat unit hari/jam/menit/detik. State normal dan state
-  selesai (semua nilai nol) memakai struktur visual yang sama, dengan frame
-  telemetry dan angka tabular.
-- Motion memakai opacity/transform/filter untuk logo, orbit, dan scanline.
-  `prefers-reduced-motion` menonaktifkan semua motion dekoratif.
+- Primary: `Inter, ui-sans-serif, system-ui, sans-serif`.
+- Display: 36px, 700, line-height 1.15.
+- Heading: 24px, 600, line-height 1.3.
+- Body: 16px, 400, line-height 1.6.
+- Small: 14px, 400, line-height 1.5.
+- Overline: 11px, 600, uppercase, letter-spacing `.18em`.
 
-## Accessibility
+## 4. Spacing & Layout
 
-- Logo memiliki alt text yang bermakna.
-- Countdown mempunyai region live yang tidak mengganggu pembaca layar.
-- Kontras logo, angka, dan footer dijaga terhadap latar teal.
+- Base unit: 4px.
+- Admin shell: minimum height `100dvh`, sidebar 248px pada desktop, satu kolom pada mobile.
+- Content width: `min(100% - 40px, 1120px)`.
+- Panel padding: 24px desktop, 20px mobile.
+- Breakpoints: 640px, 768px, 1024px.
 
-## Scope
+## 5. Components
 
-Countdown dihitung ke 22 Oktober 2026 pukul 00.00 WIB. Tidak ada API atau
-backend; waktu dihitung di browser menggunakan `Intl.DateTimeFormat` dan
-`setInterval` satu detik.
+### Admin shell
 
-## Landing Page V2
+- Structure: sidebar/header, main content, session action.
+- States: default, mobile stacked, reduced motion.
+- Accessibility: landmark `nav`, `header`, `main`; focus-visible ring pada link dan button.
 
-V2 tersedia di route `/v2` dan tidak menggantikan route `/`. V1 tetap menjadi
-halaman utama yang sudah ada. V2 memakai split-screen asimetris: logo berada di
-frame visual kiri, countdown berada di grid telemetry kanan, dengan breakpoint
-mobile menjadi satu kolom. Token V2 memakai near-black, teal, cyan struktural,
-dan gold sebagai aksen utama.
+### Auth form
 
-## Landing Page V3
+- Structure: label, input, error message, submit button.
+- States: default, focus, loading, error, disabled.
+- Accessibility: label eksplisit, `aria-invalid`, `aria-live` untuk error.
 
-V3 tersedia di route `/v3` dan memakai aset `hsn2026v3.png`. V3 tidak mengubah
-V1 atau V2. Arah visualnya minimalis terang dengan bidang off-white, teal logo
-sebagai warna utama, dan gold sebagai aksen countdown. Layout split-screen
-menjadi satu kolom pada layar kecil dan sengaja membatasi copy menjadi kicker,
-tanggal acara, countdown, serta footer.
+### Status panel
 
-## Timeline Page
+- Structure: overline, title, supporting text, action/link.
+- States: default dan informational.
+- Layout: panel dengan tonal shift, bukan kartu berulang.
 
-Timeline tersedia di route `/timeline` dan memakai arah visual yang sama dengan
-landing terbaru: latar teal gelap, aksen gold, tipografi Inter, dan garis
-geometris dekoratif. Halaman memakai `timelineItems` sebagai satu sumber data
-untuk tanggal, status, judul, deskripsi, dan lokasi setiap agenda. Struktur
-timeline menggunakan daftar semantik `<ol>`, garis progres dekoratif, dan
-breakpoint mobile satu kolom dengan rail yang lebih ringkas.
+### Admin modal
+
+- Structure: backdrop transparan, panel terpusat, judul, keterangan, konten form, dan aksi penutup.
+- States: closed, open, loading, error, destructive confirmation.
+- Accessibility: `role="dialog"`, `aria-modal`, tombol tutup, dan penutupan dengan Escape atau klik backdrop.
+- Destructive actions: tombol menggunakan status error tonal, bukan garis aksen pada panel.
+
+## 6. Motion & Interaction
+
+- Transisi standar 180ms ease-out.
+- Animasi hanya menggunakan opacity dan transform.
+- Login menampilkan keadaan loading pada tombol.
+- `prefers-reduced-motion` menonaktifkan transform dekoratif.
+
+## 7. Depth & Surface
+
+- Strategy: mixed; panel menggunakan tonal shift dan border subtle, tanpa shadow hitam pekat.
+- Radius: 8px untuk input/button, 16px untuk panel, full untuk badge.
+
+## 8. Accessibility Constraints & Accepted Debt
+
+- Target WCAG 2.2 AA.
+- Kontras teks minimal 4.5:1, focus-visible wajib terlihat, dan semua alur dapat dijalankan dengan keyboard.
+- Accepted debt: visual QA browser belum dijalankan karena pengguna meminta tidak melakukan build/test; perlu dilakukan sebelum rilis produksi.
