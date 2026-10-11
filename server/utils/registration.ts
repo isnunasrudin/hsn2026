@@ -1,8 +1,9 @@
 import { randomBytes } from 'node:crypto'
 import { createError } from 'h3'
+import { z } from 'zod'
 import { db } from '../database/client'
 import type { Activity, QuotaMode } from '../generated/prisma/client'
-import { type RegistrationField, type RegistrationFile, type RegistrationAnswers } from '../database/schema'
+import { registrationSystemFieldKeys, type RegistrationField, type RegistrationFile, type RegistrationAnswers } from '../database/schema'
 
 export type RegistrationState = 'DRAFT' | 'NOT_REQUIRED' | 'NOT_OPEN' | 'OPEN' | 'FULL' | 'CLOSED' | 'CANCELLED'
 
@@ -80,11 +81,13 @@ export const assertRegistrationAnswers = (activity: Activity & { registrationFie
   }
 
   for (const field of fields) {
+    if (registrationSystemFieldKeys.includes(field.key as typeof registrationSystemFieldKeys[number])) continue
     const value = answers[field.key]
     const empty = value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)
     if (field.required && empty) throw createError({ statusCode: 400, statusMessage: `${field.label} wajib diisi.` })
     if (empty) continue
-    if ((field.type === 'text' || field.type === 'textarea') && typeof value !== 'string') throw createError({ statusCode: 400, statusMessage: `${field.label} harus berupa teks.` })
+    if ((field.type === 'text' || field.type === 'textarea' || field.type === 'email' || field.type === 'tel') && typeof value !== 'string') throw createError({ statusCode: 400, statusMessage: `${field.label} harus berupa teks.` })
+    if (field.type === 'email' && typeof value === 'string' && !z.email().safeParse(value).success) throw createError({ statusCode: 400, statusMessage: `${field.label} harus berupa email yang valid.` })
     if (field.type === 'number' && (typeof value !== 'number' || !Number.isFinite(value))) throw createError({ statusCode: 400, statusMessage: `${field.label} harus berupa angka.` })
     if ((field.type === 'select' || field.type === 'radio') && (typeof value !== 'string' || !field.options?.includes(value))) throw createError({ statusCode: 400, statusMessage: `Pilihan ${field.label} tidak valid.` })
     if (field.type === 'checkbox' && typeof value !== 'boolean') throw createError({ statusCode: 400, statusMessage: `${field.label} harus berupa pilihan ya/tidak.` })

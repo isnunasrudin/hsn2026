@@ -2,8 +2,7 @@ import { createError, type H3Event, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { db } from '../database/client'
 import { ActivityStatus, type Activity } from '../generated/prisma/client'
-import { db } from '../database/client'
-import { activityStatuses, activityTypes, parseRegistrationFields, quotaModes, registrationFieldTypes, registrationModes, type RegistrationField } from '../database/schema'
+import { activityStatuses, activityTypes, defaultRegistrationFields, parseRegistrationFields, quotaModes, registrationFieldTypes, registrationModes, type RegistrationField } from '../database/schema'
 
 const dateValue = z.union([z.string().min(1), z.date()]).transform(value => value instanceof Date ? new Date(value.getTime()) : new Date(value)).refine(value => !Number.isNaN(value.getTime()), 'Tanggal tidak valid.')
 const nullableDateValue = dateValue.nullable()
@@ -57,9 +56,36 @@ const validateActivityFields = (value: z.infer<typeof activityFieldsSchema>, con
   if (value.registrationMode === 'TEAM' && (!value.minTeamMembers || !value.maxTeamMembers || value.maxTeamMembers < value.minTeamMembers)) {
     context.addIssue({ code: 'custom', path: ['maxTeamMembers'], message: 'Batas anggota tim tidak valid.' })
   }
+
+  const keys = value.registrationFields.map(field => field.key)
+  if (new Set(keys).size !== keys.length) {
+    context.addIssue({ code: 'custom', path: ['registrationFields'], message: 'Key field tidak boleh duplikat.' })
+  }
+  if (value.type === 'LOMBA') {
+    for (const field of defaultRegistrationFields(value.registrationMode)) {
+      const configured = value.registrationFields.find(candidate => candidate.key === field.key)
+      if (!configured || configured.type !== field.type) {
+        context.addIssue({ code: 'custom', path: ['registrationFields'], message: `Field bawaan ${field.label} wajib tersedia dengan tipe ${field.type}.` })
+      } else if (field.required && !configured.required) {
+        context.addIssue({ code: 'custom', path: ['registrationFields'], message: `Field inti ${field.label} harus tetap wajib diisi.` })
+      }
+    }
+  }
+  for (const field of value.registrationFields) {
+    if ((field.type === 'select' || field.type === 'radio') && !field.options?.length) {
+      context.addIssue({ code: 'custom', path: ['registrationFields'], message: `Field ${field.label} harus memiliki minimal satu pilihan.` })
+    }
+  }
+  if (value.type === 'EVENT' && value.registrationFields.length > 0) {
+    context.addIssue({ code: 'custom', path: ['registrationFields'], message: 'Event tidak dapat memiliki field pendaftaran.' })
+  }
 }
 
-export const activityInputSchema = activityFieldsSchema.superRefine(validateActivityFields)
+export const activityInputSchema = activityFieldsSchema
+  .transform(value => value.type === 'LOMBA' && value.registrationFields.length === 0
+    ? { ...value, registrationFields: defaultRegistrationFields(value.registrationMode) }
+    : value)
+  .superRefine(validateActivityFields)
 
 export const activityPatchSchema = activityFieldsSchema.partial()
 
@@ -89,7 +115,10 @@ export const getActivityOrThrow = async (activityId: number) => {
   return { ...record, registrationFields: parseRegistrationFields(record.registrationFields) }
 }
 
-export const activityRecord = (record: Activity) => ({ ...record, registrationFields: parseRegistrationFields(record.registrationFields) })
+export const activityRecord = (record: Activity) => {
+  const fields = parseRegistrationFields(record.registrationFields)
+  return { ...record, registrationFields: record.type === 'LOMBA' && fields.length === 0 ? defaultRegistrationFields(record.registrationMode) : fields }
+}
 
 export const activityPayload = (activity: Activity & { registrationFields: RegistrationField[] }) => ({
   ...activity,

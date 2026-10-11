@@ -5,7 +5,7 @@ type ActivityType = 'LOMBA' | 'EVENT'
 type ActivityStatus = 'DRAFT' | 'PUBLISHED' | 'CLOSED' | 'CANCELLED'
 type RegistrationMode = 'INDIVIDUAL' | 'TEAM'
 type QuotaMode = 'REGISTRATION' | 'PERSON'
-type RegistrationFieldType = 'text' | 'textarea' | 'number' | 'select' | 'radio' | 'checkbox' | 'file'
+type RegistrationFieldType = 'text' | 'textarea' | 'number' | 'email' | 'tel' | 'select' | 'radio' | 'checkbox' | 'file'
 
 type RegistrationField = {
   key: string
@@ -100,6 +100,39 @@ const filteredActivities = computed(() => {
 const operators = computed(() => (usersData.value?.users ?? []).filter(operator => operator.role === 'OPERATOR'))
 const selectedActivity = computed(() => activities.value.find(activity => activity.id === editingId.value) ?? null)
 const isRegistrationActivity = computed(() => form.type === 'LOMBA')
+const systemFieldKeys = ['registrant_name', 'email', 'phone', 'institution', 'team_name', 'participant_count', 'member_name', 'member_identity_number']
+const inactiveSystemFields = new Map<string, RegistrationField>()
+
+const defaultFields = (mode: RegistrationMode): RegistrationField[] => [
+  { key: 'registrant_name', label: 'Nama peserta / penanggung jawab', type: 'text', required: true },
+  { key: 'email', label: 'Email aktif', type: 'email', required: true },
+  { key: 'phone', label: 'Nomor telepon', type: 'tel', required: true },
+  { key: 'institution', label: 'Instansi / pesantren', type: 'text', required: false },
+  ...(mode === 'TEAM' ? [
+    { key: 'team_name', label: 'Nama tim', type: 'text' as const, required: true },
+    { key: 'participant_count', label: 'Jumlah anggota tim', type: 'number' as const, required: true },
+    { key: 'member_name', label: 'Nama anggota', type: 'text' as const, required: true },
+    { key: 'member_identity_number', label: 'Nomor identitas anggota', type: 'text' as const, required: false }
+  ] : [])
+]
+
+const syncSystemFields = (): void => {
+  if (!isRegistrationActivity.value) return
+  const existing = new Map(form.registrationFields.map(field => [field.key, field]))
+  for (const field of form.registrationFields) {
+    if (systemFieldKeys.includes(field.key)) inactiveSystemFields.set(field.key, { ...field })
+  }
+  const defaults = defaultFields(form.registrationMode)
+  const systemKeysForMode = defaults.map(field => field.key)
+  const customFields = form.registrationFields.filter(field => !systemFieldKeys.includes(field.key))
+  form.registrationFields = [
+    ...defaults.map(field => ({ ...field, ...(inactiveSystemFields.get(field.key) ?? {}), ...(existing.get(field.key) ?? {}) })),
+    ...customFields.filter(field => !systemKeysForMode.includes(field.key))
+  ]
+}
+
+watch(() => form.type, () => syncSystemFields())
+watch(() => form.registrationMode, () => syncSystemFields())
 
 const clearMessages = (): void => {
   feedback.value = ''
@@ -128,6 +161,7 @@ const eventRegistrationWindow = (): { opensAt: string; closesAt: string } => {
 }
 
 const resetForm = (): void => {
+  inactiveSystemFields.clear()
   form.type = 'EVENT'
   form.title = ''
   form.organizer = ''
@@ -154,10 +188,13 @@ const resetForm = (): void => {
 }
 
 const addRegistrationField = (): void => {
-  form.registrationFields.push({ key: `field_${form.registrationFields.length + 1}`, label: 'Field baru', type: 'text', required: false, options: [], accept: '' })
+  let index = form.registrationFields.length + 1
+  while (form.registrationFields.some(field => field.key === `field_${index}`)) index += 1
+  form.registrationFields.push({ key: `field_${index}`, label: 'Field baru', type: 'text', required: false, options: [], accept: '' })
 }
 
 const removeRegistrationField = (index: number): void => {
+  if (systemFieldKeys.includes(form.registrationFields[index]?.key ?? '')) return
   form.registrationFields.splice(index, 1)
 }
 
@@ -270,6 +307,7 @@ const createActivity = async (): Promise<void> => {
 
 const editActivity = async (activity: ActivityRecord): Promise<void> => {
   clearMessages()
+  inactiveSystemFields.clear()
   editingId.value = activity.id
   isCreateOpen.value = false
   form.type = activity.type
@@ -293,6 +331,9 @@ const editActivity = async (activity: ActivityRecord): Promise<void> => {
   form.maxTeamMembers = activity.maxTeamMembers?.toString() ?? ''
   form.status = activity.status
   form.registrationFields = activity.registrationFields.map(field => ({ ...field, options: field.options ? [...field.options] : [] }))
+  for (const field of form.registrationFields) {
+    if (systemFieldKeys.includes(field.key)) inactiveSystemFields.set(field.key, { ...field })
+  }
   form.juknisFile = null
 
   if (user.value?.role === 'SUPER_ADMIN') {
@@ -363,7 +404,24 @@ const updateActivity = async (): Promise<void> => {
       <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Mode kuota<select v-model="form.quotaMode" class="admin-input"><option value="REGISTRATION">Per pendaftaran</option><option value="PERSON">Per orang</option></select></label>
       <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Kapasitas<input v-model="form.capacity" class="admin-input" min="1" type="number" placeholder="Kosong = tanpa batas"></label>
       <template v-if="isRegistrationActivity && form.registrationMode === 'TEAM'"><label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Minimal anggota<input v-model="form.minTeamMembers" class="admin-input" min="1" required type="number"></label><label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Maksimal anggota<input v-model="form.maxTeamMembers" class="admin-input" min="1" required type="number"></label></template>
-      <div v-if="isRegistrationActivity" class="grid gap-3 sm:col-span-2"><div class="flex items-center justify-between gap-4"><div><p class="text-sm font-medium text-[var(--hsn-text-secondary)]">Field tambahan pendaftaran</p><p class="mt-1 text-xs text-[var(--hsn-text-muted)]">Field ini akan ditampilkan pada formulir publik.</p></div><button class="admin-button admin-button-secondary px-3 py-2 text-xs" type="button" @click="addRegistrationField">Tambah field</button></div><div v-for="(field, index) in form.registrationFields" :key="`${field.key}-${index}`" class="grid gap-3 rounded-lg border border-[var(--hsn-border-subtle)] p-4 sm:grid-cols-[1fr_1fr_160px_auto]"><label class="grid gap-2 text-xs text-[var(--hsn-text-muted)]">Key<input v-model="field.key" class="admin-input text-sm" required type="text" placeholder="asal_sekolah"></label><label class="grid gap-2 text-xs text-[var(--hsn-text-muted)]">Label<input v-model="field.label" class="admin-input text-sm" required type="text" placeholder="Asal sekolah"></label><label class="grid gap-2 text-xs text-[var(--hsn-text-muted)]">Tipe<select v-model="field.type" class="admin-input text-sm"><option value="text">Teks</option><option value="textarea">Paragraf</option><option value="number">Angka</option><option value="select">Pilihan</option><option value="radio">Radio</option><option value="checkbox">Checkbox</option><option value="file">File</option></select></label><div class="flex items-end gap-2"><label class="flex items-center gap-2 pb-3 text-xs text-[var(--hsn-text-secondary)]"><input v-model="field.required" type="checkbox"> Wajib</label><button class="admin-button admin-button-secondary px-3 py-2 text-xs" type="button" @click="removeRegistrationField(index)">Hapus</button></div><label v-if="['select', 'radio'].includes(field.type)" class="grid gap-2 text-xs text-[var(--hsn-text-muted)] sm:col-span-4">Pilihan, pisahkan dengan koma<input :value="field.options?.join(', ')" class="admin-input text-sm" type="text" @input="updateFieldOptions(field, $event)"></label><label v-if="field.type === 'file'" class="grid gap-2 text-xs text-[var(--hsn-text-muted)] sm:col-span-4">Format file<input v-model="field.accept" class="admin-input text-sm" type="text" placeholder=".pdf,image/*"></label></div></div>
+      <div v-if="isRegistrationActivity" class="grid gap-3 sm:col-span-2">
+        <div class="flex items-center justify-between gap-4">
+          <div><p class="text-sm font-medium text-[var(--hsn-text-secondary)]">Formulir pendaftaran</p><p class="mt-1 text-xs leading-5 text-[var(--hsn-text-muted)]">Field bawaan sudah disiapkan. Ubah labelnya, lalu tambahkan field sesuai kebutuhan lomba.</p></div>
+          <button class="admin-button admin-button-secondary px-3 py-2 text-xs" type="button" @click="addRegistrationField">Tambah field</button>
+        </div>
+        <div v-for="(field, index) in form.registrationFields" :key="`${field.key}-${index}`" class="grid gap-3 rounded-lg border border-[var(--hsn-border-subtle)] p-4 sm:grid-cols-[1fr_1fr_160px_auto]">
+          <label class="grid gap-2 text-xs text-[var(--hsn-text-muted)]">Key<input v-model="field.key" class="admin-input text-sm" :readonly="systemFieldKeys.includes(field.key)" required type="text" placeholder="asal_sekolah"></label>
+          <label class="grid gap-2 text-xs text-[var(--hsn-text-muted)]">Label<input v-model="field.label" class="admin-input text-sm" required type="text" placeholder="Asal sekolah"></label>
+          <label class="grid gap-2 text-xs text-[var(--hsn-text-muted)]">Tipe<select v-model="field.type" class="admin-input text-sm" :disabled="systemFieldKeys.includes(field.key)"><option value="text">Teks</option><option value="textarea">Paragraf</option><option value="number">Angka</option><option value="email">Email</option><option value="tel">Nomor telepon</option><option value="select">Pilihan</option><option value="radio">Radio</option><option value="checkbox">Checkbox</option><option value="file">File</option></select></label>
+          <div class="flex items-end gap-2">
+            <label class="flex items-center gap-2 pb-3 text-xs text-[var(--hsn-text-secondary)]"><input v-model="field.required" :disabled="['registrant_name', 'email', 'phone', 'team_name', 'participant_count', 'member_name'].includes(field.key)" type="checkbox"> Wajib</label>
+            <button v-if="!systemFieldKeys.includes(field.key)" class="admin-button admin-button-secondary px-3 py-2 text-xs" type="button" @click="removeRegistrationField(index)">Hapus</button>
+            <span v-else class="pb-3 text-[11px] text-[var(--hsn-text-muted)]">Field sistem</span>
+          </div>
+          <label v-if="['select', 'radio'].includes(field.type)" class="grid gap-2 text-xs text-[var(--hsn-text-muted)] sm:col-span-4">Pilihan, pisahkan dengan koma<input :value="field.options?.join(', ')" class="admin-input text-sm" type="text" @input="updateFieldOptions(field, $event)"></label>
+          <label v-if="field.type === 'file'" class="grid gap-2 text-xs text-[var(--hsn-text-muted)] sm:col-span-4">Format file<input v-model="field.accept" class="admin-input text-sm" type="text" placeholder=".pdf,image/*"></label>
+        </div>
+      </div>
       <template v-if="user?.role === 'SUPER_ADMIN' && editingId"><div class="grid gap-2 sm:col-span-2"><p class="text-sm text-[var(--hsn-text-secondary)]">Operator kegiatan</p><div class="grid gap-2 rounded-lg border border-[var(--hsn-border-subtle)] p-4 sm:grid-cols-2"><label v-for="operator in operators" :key="operator.id" class="flex items-center gap-3 text-sm text-[var(--hsn-text-secondary)]"><input v-model="selectedOperatorIds" :value="operator.id" type="checkbox"><span>{{ operator.name }}<small class="ml-2 text-[var(--hsn-text-muted)]">{{ operator.email }}</small></span></label><p v-if="operators.length === 0" class="text-sm text-[var(--hsn-text-muted)]">Belum ada operator aktif.</p></div></div></template>
       <div class="sm:col-span-2 flex justify-end gap-3"><button class="admin-button admin-button-secondary" type="button" @click="closeEditor">Batal</button><button class="admin-button admin-button-primary" type="submit" :disabled="isSubmitting">{{ isSubmitting ? 'Menyimpan...' : (editingId ? 'Simpan perubahan' : 'Simpan kegiatan') }}</button></div>
     </form>

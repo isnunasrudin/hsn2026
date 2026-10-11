@@ -2,6 +2,7 @@ import 'dotenv/config'
 import { hash } from '@node-rs/argon2'
 import { z } from 'zod'
 import { db } from './client'
+import { defaultRegistrationFields } from './schema'
 
 const seedEnvironmentSchema = z.object({
   ADMIN_NAME: z.string().trim().min(2),
@@ -100,7 +101,7 @@ const seedActivities = async (createdBy: number): Promise<void> => {
       capacity: null,
       minTeamMembers: null,
       maxTeamMembers: null,
-      registrationFields: [],
+      registrationFields: type === 'LOMBA' ? defaultRegistrationFields() : [],
       status: 'PUBLISHED',
       createdBy
     } })

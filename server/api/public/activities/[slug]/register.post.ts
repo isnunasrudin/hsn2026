@@ -5,7 +5,7 @@ import { createError, defineEventHandler, getRouterParam, readBody, readMultipar
 import { z } from 'zod'
 import { Prisma } from '../../../../generated/prisma/client'
 import { db } from '../../../../database/client'
-import { parseRegistrationFields } from '../../../../database/schema'
+import { defaultRegistrationFields, parseRegistrationFields, registrationSystemFieldKeys } from '../../../../database/schema'
 import { assertSameOrigin } from '../../../../utils/auth'
 import { assertRegistrationAnswers, getQuotaUsed, getRegistrationState, makeRegistrationCode, normalizePhone } from '../../../../utils/registration'
 import { registrationUploadDirectory } from '../../../../utils/registration-upload'
@@ -36,7 +36,8 @@ export default defineEventHandler(async (event) => {
   const activityRecord = slug ? await db.activity.findUnique({ where: { slug } }) : null
 
   if (!activityRecord || activityRecord.status !== 'PUBLISHED') throw createError({ statusCode: 404, statusMessage: 'Kegiatan tidak ditemukan.' })
-  const activity = { ...activityRecord, registrationFields: parseRegistrationFields(activityRecord.registrationFields) }
+  const configuredFields = parseRegistrationFields(activityRecord.registrationFields)
+  const activity = { ...activityRecord, registrationFields: configuredFields.length === 0 ? defaultRegistrationFields(activityRecord.registrationMode) : configuredFields }
   if (activity.type === 'EVENT') throw createError({ statusCode: 422, statusMessage: 'Event tidak menggunakan pendaftaran peserta.' })
 
   const multipart = await readMultipartFormData(event)
@@ -60,6 +61,10 @@ export default defineEventHandler(async (event) => {
   if (!parsedInput.success) throw createError({ statusCode: 400, statusMessage: 'Data pendaftaran tidak valid.' })
 
   const input = parsedInput.data
+  const institutionField = activity.registrationFields.find(field => field.key === 'institution')
+  if (institutionField?.required && !input.institution.trim()) throw createError({ statusCode: 400, statusMessage: `${institutionField.label} wajib diisi.` })
+  const identityField = activity.registrationFields.find(field => field.key === 'member_identity_number')
+  if (identityField?.required && input.members.some(member => !member.identityNumber.trim())) throw createError({ statusCode: 400, statusMessage: `${identityField.label} wajib diisi.` })
   const fileAnswers: Record<string, { token: string; name: string; size: number; type: string }> = {}
   const fileParts = multipart?.filter(part => part.filename && part.name.startsWith('file_')) ?? []
   for (const field of activity.registrationFields.filter(field => field.type === 'file')) {
@@ -123,7 +128,7 @@ export default defineEventHandler(async (event) => {
       institution: input.institution || null,
       teamName: input.teamName || null,
       participantCount: input.participantCount,
-      answers: answers as Prisma.InputJsonValue,
+      answers: Object.fromEntries(Object.entries(answers).filter(([key]) => !registrationSystemFieldKeys.includes(key as typeof registrationSystemFieldKeys[number]))) as Prisma.InputJsonValue,
       members: { create: input.members.map(member => ({ name: member.name, identityNumber: member.identityNumber || null })) }
     } })
     return registration
