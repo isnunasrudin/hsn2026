@@ -508,10 +508,10 @@ const updateActivity = async (): Promise<void> => {
           <thead><tr><th>Kegiatan</th><th>Jadwal</th><th>Pendaftaran</th><th>Status</th><th><span class="sr-only">Aksi</span></th></tr></thead>
           <tbody>
             <template v-for="group in filteredActivityGroups" :key="group.key">
-              <tr v-if="group.items.length > 1"><td colspan="5" class="bg-[var(--hsn-surface-secondary)] font-semibold text-[var(--hsn-text-primary)]">{{ group.date }}</td></tr>
+              <tr><td colspan="5" class="bg-[var(--hsn-surface-secondary)] font-semibold text-[var(--hsn-text-primary)]">{{ group.date || 'Tanpa tanggal' }}</td></tr>
               <tr v-for="activity in group.items" :key="activity.id">
                 <td><p class="font-medium text-[var(--hsn-text-primary)]">{{ activity.title || 'Draf belum berjudul' }}</p><p class="mt-1 text-sm text-[var(--hsn-text-muted)]">{{ activity.type }}<span v-if="activity.slug"> · /{{ activity.slug }}</span></p></td>
-                <td class="text-sm text-[var(--hsn-text-secondary)]">{{ activity.startsAt ? (group.items.length === 1 ? formatIndonesiaDateTimeRange(activity.startsAt, activity.endsAt) : formatIndonesiaTimeRange(activity.startsAt, activity.endsAt)) : '' }}</td>
+                <td class="text-sm text-[var(--hsn-text-secondary)]">{{ activity.startsAt ? formatIndonesiaTimeRange(activity.startsAt, activity.endsAt) : '' }}</td>
                 <td class="text-sm text-[var(--hsn-text-secondary)]"><span v-if="activity.type === 'LOMBA' && (activity.registrationOpensAt || activity.registrationClosesAt)">{{ formatIndonesiaDateRange(activity.registrationOpensAt, activity.registrationClosesAt) }}</span></td>
                 <td><span class="admin-badge-accent rounded-full px-2.5 py-1 text-xs font-semibold">{{ activity.status }}</span></td>
                 <td><div class="flex justify-end gap-2"><NuxtLink v-if="activity.type === 'LOMBA'" class="admin-button admin-button-secondary px-3 py-2 text-xs" :to="`/admin/registrations/${activity.id}`">Pendaftar</NuxtLink><button class="admin-button admin-button-secondary px-3 py-2 text-xs" type="button" @click="editActivity(activity)">Edit</button><button class="admin-button admin-button-danger px-3 py-2 text-xs" type="button" @click="requestDelete(activity)">Hapus</button></div></td>
