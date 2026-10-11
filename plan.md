@@ -247,7 +247,7 @@ data/
   juknis/
 ```
 
-Database lokal tidak boleh disimpan ke Git. Abaikan file SQLite lama yang dipakai hanya sebagai sumber impor satu kali.
+Database lokal tidak boleh disimpan ke Git.
 
 ## 6. API yang Direncanakan
 

@@ -37,15 +37,6 @@ pnpm db:seed
 
 `DATABASE_URL` adalah satu-satunya konfigurasi koneksi database. Seluruh operasi data server memakai Prisma Client; file unggahan tetap disimpan di `NUXT_DATA_DIR` (default `./data`) dan perlu dipertahankan saat deployment.
 
-Untuk memindahkan database SQLite lama, buat database PostgreSQL kosong, terapkan migration, lalu jalankan importer satu kali:
-
-```bash
-pnpm db:migrate
-pnpm db:import-sqlite -- ./data/hsn2026.sqlite
-```
-
-Importer membaca SQLite dalam mode read-only dan menyimpan seluruh tabel melalui Prisma Client. PostgreSQL tujuan harus kosong. File juknis dan unggahan pendaftaran tidak berada di database; pertahankan direktori `NUXT_DATA_DIR` saat memindahkan aplikasi.
-
 ## Autentikasi
 
 Endpoint autentikasi internal yang tersedia:

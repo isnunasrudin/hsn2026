@@ -5,16 +5,14 @@
   "scripts": {
     "build": "nuxt build",
     "db:generate": "prisma generate",
-    "db:generate:sqlite-import": "prisma generate --schema prisma/sqlite-import.schema.prisma --config prisma.sqlite.config.ts",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "tsx server/database/seed.ts",
-    "db:import-sqlite": "tsx scripts/import-sqlite.ts",
     "smoke:business": "tsx scripts/smoke-postgres-business.ts",
     "dev": "nuxt dev --host 0.0.0.0",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare && prisma generate && prisma generate --schema prisma/sqlite-import.schema.prisma --config prisma.sqlite.config.ts"
+    "postinstall": "nuxt prepare && prisma generate"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.1",
@@ -29,14 +27,12 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@prisma/adapter-better-sqlite3": "^7.0.0",
     "dotenv": "^18.0.5",
     "prisma": "^7.0.0",
     "tsx": "^4.23.15"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "better-sqlite3",
       "esbuild"
     ]
   }
