@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { user } = useUserSession()
+const { user, fetch: refreshSession } = useUserSession()
 const isLoggingOut = ref(false)
 
 const logout = async (): Promise<void> => {
@@ -7,6 +7,7 @@ const logout = async (): Promise<void> => {
 
   try {
     await $fetch('/api/auth/logout', { method: 'POST' })
+    await refreshSession()
     await navigateTo('/admin/login')
   } finally {
     isLoggingOut.value = false

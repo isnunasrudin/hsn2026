@@ -5,6 +5,7 @@ definePageMeta({
 })
 
 const route = useRoute()
+const { fetch: refreshSession } = useUserSession()
 const email = ref('')
 const password = ref('')
 const errorMessage = ref('')
@@ -29,6 +30,7 @@ const submit = async (): Promise<void> => {
       method: 'POST',
       body: { email: email.value, password: password.value }
     })
+    await refreshSession()
     await navigateTo(getRedirectPath())
   } catch (error: unknown) {
     const responseError = error as { data?: { statusMessage?: string } }
