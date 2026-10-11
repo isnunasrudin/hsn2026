@@ -1,8 +1,9 @@
-import { eq } from 'drizzle-orm'
 import { createError, type H3Event, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { db } from '../database/client'
-import { activities, activityStatuses, activityTypes, quotaModes, registrationFieldTypes, registrationModes } from '../database/schema'
+import { ActivityStatus, type Activity } from '../generated/prisma/client'
+import { db } from '../database/client'
+import { activityStatuses, activityTypes, parseRegistrationFields, quotaModes, registrationFieldTypes, registrationModes, type RegistrationField } from '../database/schema'
 
 const dateValue = z.union([z.string().min(1), z.date()]).transform(value => value instanceof Date ? new Date(value.getTime()) : new Date(value)).refine(value => !Number.isNaN(value.getTime()), 'Tanggal tidak valid.')
 const nullableDateValue = dateValue.nullable()
@@ -78,25 +79,33 @@ export const getActivityId = (event: H3Event): number => {
   return parsedId.data
 }
 
-export const getActivityOrThrow = (activityId: number) => {
-  const activity = db.select().from(activities).where(eq(activities.id, activityId)).get()
+export const getActivityOrThrow = async (activityId: number) => {
+  const record = await db.activity.findUnique({ where: { id: activityId } })
 
-  if (!activity) {
+  if (!record) {
     throw createError({ statusCode: 404, statusMessage: 'Kegiatan tidak ditemukan.' })
   }
 
-  return activity
+  return { ...record, registrationFields: parseRegistrationFields(record.registrationFields) }
 }
 
-export const activityPayload = (activity: typeof activities.$inferSelect) => ({
+export const activityRecord = (record: Activity) => ({ ...record, registrationFields: parseRegistrationFields(record.registrationFields) })
+
+export const activityPayload = (activity: Activity & { registrationFields: RegistrationField[] }) => ({
   ...activity,
+  juknis: activity.juknisStorageName ? {
+    name: activity.juknisFileName,
+    mimeType: activity.juknisMimeType,
+    size: activity.juknisSize,
+    url: `/api/admin/activities/${activity.id}/juknis`
+  } : null,
   startsAt: activity.startsAt.toISOString(),
   endsAt: activity.endsAt?.toISOString() ?? null,
   registrationOpensAt: activity.registrationOpensAt.toISOString(),
   registrationClosesAt: activity.registrationClosesAt.toISOString()
 })
 
-export const assertStatusTransition = (current: typeof activityStatuses[number], next: typeof activityStatuses[number]): void => {
+export const assertStatusTransition = (current: ActivityStatus, next: ActivityStatus): void => {
   type ActivityStatus = typeof activityStatuses[number]
   const allowed: Record<ActivityStatus, readonly ActivityStatus[]> = {
     DRAFT: ['DRAFT', 'PUBLISHED', 'CANCELLED'],

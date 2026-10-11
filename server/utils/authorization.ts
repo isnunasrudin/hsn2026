@@ -1,8 +1,6 @@
-import { and, eq } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { createError } from 'h3'
 import { db } from '../database/client'
-import { activityUsers, users } from '../database/schema'
 import { getAuthenticatedUser } from './auth'
 
 export const requireAuthenticatedUser = getAuthenticatedUser
@@ -24,14 +22,7 @@ export const requireActivityAccess = async (event: H3Event, activityId: number) 
     return user
   }
 
-  const assignment = db
-    .select({ userId: activityUsers.userId })
-    .from(activityUsers)
-    .where(and(
-      eq(activityUsers.activityId, activityId),
-      eq(activityUsers.userId, user.id)
-    ))
-    .get()
+  const assignment = await db.activityUser.findUnique({ where: { activityId_userId: { activityId, userId: user.id } } })
 
   if (!assignment) {
     throw createError({ statusCode: 403, statusMessage: 'Anda tidak ditugaskan pada kegiatan ini.' })
@@ -42,7 +33,7 @@ export const requireActivityAccess = async (event: H3Event, activityId: number) 
 
 export const requireUserById = async (event: H3Event, userId: number) => {
   await requireSuperAdmin(event)
-  const user = db.select().from(users).where(eq(users.id, userId)).get()
+  const user = await db.user.findUnique({ where: { id: userId } })
 
   if (!user) {
     throw createError({ statusCode: 404, statusMessage: 'Pengguna tidak ditemukan.' })

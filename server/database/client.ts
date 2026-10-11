@@ -1,19 +1,16 @@
-import { mkdirSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-import * as schema from './schema'
+import { PrismaPg } from '@prisma/adapter-pg'
+import { PrismaClient } from '../generated/prisma/client'
 
-const configuredPath = process.env.NUXT_DATABASE_PATH ?? './data/hsn2026.sqlite'
+const connectionString = process.env.DATABASE_URL
 
-export const databasePath = resolve(process.cwd(), configuredPath)
+if (!connectionString) {
+  throw new Error('DATABASE_URL wajib diatur untuk koneksi PostgreSQL.')
+}
 
-mkdirSync(dirname(databasePath), { recursive: true })
+const adapter = new PrismaPg({ connectionString })
 
-export const sqliteClient = new Database(databasePath)
+const globalForPrisma = globalThis as typeof globalThis & { prisma?: PrismaClient }
 
-sqliteClient.pragma('foreign_keys = ON')
-sqliteClient.pragma('journal_mode = WAL')
-sqliteClient.pragma('busy_timeout = 5000')
+export const db = globalForPrisma.prisma ?? new PrismaClient({ adapter })
 
-export const db = drizzle({ client: sqliteClient, schema })
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db

@@ -1,9 +1,7 @@
 import 'dotenv/config'
 import { hash } from '@node-rs/argon2'
-import { eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { db, sqliteClient } from './client'
-import { activities, users } from './schema'
+import { db } from './client'
 
 const seedEnvironmentSchema = z.object({
   ADMIN_NAME: z.string().trim().min(2),
@@ -20,38 +18,34 @@ const seedAdmin = async (): Promise<number> => {
     parallelism: 1
   })
 
-  const existingUser = db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.email, environment.ADMIN_EMAIL))
-    .get()
+  const existingUser = await db.user.findUnique({ where: { email: environment.ADMIN_EMAIL }, select: { id: true } })
 
   if (existingUser) {
-    db.update(users)
-      .set({
+    await db.user.update({
+      where: { id: existingUser.id },
+      data: {
         name: environment.ADMIN_NAME,
         passwordHash,
         role: 'SUPER_ADMIN',
         isActive: true,
         updatedAt: new Date()
-      })
-      .where(eq(users.id, existingUser.id))
-      .run()
+      }
+    })
 
     console.info(`Super admin diperbarui: ${environment.ADMIN_EMAIL}`)
     return existingUser.id
   }
 
-  db.insert(users).values({
+  const user = await db.user.create({ data: {
     name: environment.ADMIN_NAME,
     email: environment.ADMIN_EMAIL,
     passwordHash,
     role: 'SUPER_ADMIN'
-  }).run()
+  } })
 
   console.info(`Super admin dibuat: ${environment.ADMIN_EMAIL}`)
 
-  return db.select({ id: users.id }).from(users).where(eq(users.email, environment.ADMIN_EMAIL)).get()!.id
+  return user.id
 }
 
 const atWib = (value: string): Date => new Date(`${value}+07:00`)
@@ -78,15 +72,15 @@ const initialActivities = [
   ['EVENT', 'Istighotzah', 'istighotzah', 'Acara penutupan resmi peringatan Hari Santri Nasional 2026 oleh PCNU Trenggalek.', 'PCNU', 'Venue Utama, Aloon Aloon Trenggalek', '2026-11-02T21:00:00', '2026-11-02T22:00:00', null]
 ] as const
 
-const seedActivities = (createdBy: number): void => {
+const seedActivities = async (createdBy: number): Promise<void> => {
   const opensAt = atWib('2026-01-01T00:00:00')
   const closesAt = atWib('2026-12-31T23:59:00')
 
   for (const [type, title, slug, description, organizer, location, startsAt, endsAt, image] of initialActivities) {
-    const existing = db.select({ id: activities.id }).from(activities).where(eq(activities.slug, slug)).get()
+    const existing = await db.activity.findUnique({ where: { slug }, select: { id: true } })
     if (existing) continue
 
-    db.insert(activities).values({
+    await db.activity.create({ data: {
       type,
       title,
       organizer,
@@ -109,12 +103,12 @@ const seedActivities = (createdBy: number): void => {
       registrationFields: [],
       status: 'PUBLISHED',
       createdBy
-    }).run()
+    } })
   }
 }
 
 seedAdmin()
-  .then((adminId) => seedActivities(adminId))
+  .then(adminId => seedActivities(adminId))
   .catch((error: unknown) => {
     if (error instanceof Error) {
       console.error(`Seed gagal: ${error.message}`)
@@ -123,6 +117,4 @@ seedAdmin()
     }
     process.exitCode = 1
   })
-  .finally(() => {
-    sqliteClient.close()
-  })
+  .finally(() => db.$disconnect())

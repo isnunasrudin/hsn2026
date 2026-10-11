@@ -1,8 +1,7 @@
-import { and, count, eq, gt } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { createError, getRequestHeader, getRequestIP } from 'h3'
 import { db } from '../database/client'
-import { loginAttempts, users } from '../database/schema'
+import type { User } from '../generated/prisma/client'
 
 const loginWindowMs = 15 * 60 * 1000
 const maxLoginAttempts = 5
@@ -37,42 +36,24 @@ export const assertSameOrigin = (event: H3Event): void => {
   }
 }
 
-export const isLoginRateLimited = (identity: { readonly email: string; readonly ipAddress: string }): boolean => {
+export const isLoginRateLimited = async (identity: { readonly email: string; readonly ipAddress: string }): Promise<boolean> => {
   const since = new Date(Date.now() - loginWindowMs)
-  const result = db
-    .select({ attempts: count() })
-    .from(loginAttempts)
-    .where(and(
-      eq(loginAttempts.email, identity.email),
-      eq(loginAttempts.ipAddress, identity.ipAddress),
-      gt(loginAttempts.attemptedAt, since)
-    ))
-    .get()
-
-  return (result?.attempts ?? 0) >= maxLoginAttempts
+  const attempts = await db.loginAttempt.count({ where: { email: identity.email, ipAddress: identity.ipAddress, attemptedAt: { gt: since } } })
+  return attempts >= maxLoginAttempts
 }
 
-export const recordLoginFailure = (identity: { readonly email: string; readonly ipAddress: string }): void => {
-  db.insert(loginAttempts).values(identity).run()
+export const recordLoginFailure = async (identity: { readonly email: string; readonly ipAddress: string }): Promise<void> => {
+  await db.loginAttempt.create({ data: identity })
 }
 
-export const clearLoginFailures = (identity: { readonly email: string; readonly ipAddress: string }): void => {
-  db.delete(loginAttempts)
-    .where(and(
-      eq(loginAttempts.email, identity.email),
-      eq(loginAttempts.ipAddress, identity.ipAddress)
-    ))
-    .run()
+export const clearLoginFailures = async (identity: { readonly email: string; readonly ipAddress: string }): Promise<void> => {
+  await db.loginAttempt.deleteMany({ where: identity })
 }
 
 export const getAuthenticatedUser = async (event: H3Event) => {
   const session = await requireUserSession(event)
   const sessionUser = session.user
-  const user = db
-    .select()
-    .from(users)
-    .where(eq(users.id, sessionUser.id))
-    .get()
+  const user = await db.user.findUnique({ where: { id: sessionUser.id } })
 
   if (!user || !user.isActive) {
     await clearUserSession(event)
@@ -89,11 +70,7 @@ export const getOptionalAuthenticatedUser = async (event: H3Event) => {
     return null
   }
 
-  const user = db
-    .select()
-    .from(users)
-    .where(eq(users.id, session.user.id))
-    .get()
+  const user = await db.user.findUnique({ where: { id: session.user.id } })
 
   if (!user || !user.isActive) {
     await clearUserSession(event)
@@ -103,7 +80,7 @@ export const getOptionalAuthenticatedUser = async (event: H3Event) => {
   return user
 }
 
-export const loginUser = async (event: H3Event, user: typeof users.$inferSelect): Promise<void> => {
+export const loginUser = async (event: H3Event, user: User): Promise<void> => {
   await setUserSession(event, {
     user: {
       id: user.id,

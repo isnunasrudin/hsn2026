@@ -14,7 +14,7 @@ Sistem harus menyediakan:
 - manajemen pengguna internal;
 - penugasan pengguna sebagai operator pada kegiatan tertentu;
 - area admin yang hanya memperlihatkan data sesuai hak akses pengguna;
-- penyimpanan data menggunakan SQLite.
+- penyimpanan data menggunakan PostgreSQL melalui Prisma ORM.
 
 ## 2. Pengguna dan Kondisi Ideal
 
@@ -44,9 +44,9 @@ Sistem harus menyediakan:
 
 - Tetap menggunakan Nuxt 4, Vue 3, Tailwind CSS 4, dan pnpm.
 - Menggunakan Nitro server routes di direktori `server/api` sebagai backend dalam proyek yang sama.
-- Menggunakan SQLite sebagai database tunggal.
-- Menggunakan Drizzle ORM agar schema, migration, relasi, dan query SQLite tetap eksplisit.
-- Menggunakan `better-sqlite3` sebagai driver SQLite.
+- Menggunakan PostgreSQL sebagai database tunggal.
+- Menggunakan Prisma ORM untuk schema, migration, relasi, transaksi, dan query database.
+- Menggunakan driver PostgreSQL `pg` melalui adapter resmi Prisma.
 - Menggunakan `nuxt-auth-utils` untuk session berbasis cookie terenkripsi.
 - Menggunakan `@node-rs/argon2` untuk hashing password.
 - Menggunakan `zod` untuk validasi payload API dan field pendaftaran dinamis.
@@ -54,16 +54,16 @@ Sistem harus menyediakan:
 ### Library yang Direncanakan
 
 ```bash
-pnpm add drizzle-orm better-sqlite3 nuxt-auth-utils @node-rs/argon2 zod
-pnpm add -D drizzle-kit @types/better-sqlite3 tsx
+pnpm add @prisma/client @prisma/adapter-pg nuxt-auth-utils @node-rs/argon2 zod
+pnpm add -D prisma tsx
 ```
 
 Tambahkan script berikut ke `package.json`:
 
 ```json
 {
-  "db:generate": "drizzle-kit generate",
-  "db:migrate": "drizzle-kit migrate",
+  "db:generate": "prisma generate",
+  "db:migrate": "prisma migrate deploy",
   "db:seed": "tsx server/database/seed.ts"
 }
 ```
@@ -166,7 +166,7 @@ Aturan kuota:
 - Status `REJECTED` dan `CANCELLED` melepaskan kuota.
 - `quota_mode = REGISTRATION`: satu baris pendaftaran dihitung satu slot.
 - `quota_mode = PERSON`: kuota dihitung dari total `participant_count`.
-- Pemeriksaan kuota dan penyimpanan pendaftaran harus dilakukan dalam satu transaksi SQLite `IMMEDIATE`.
+- Pemeriksaan kuota dan penyimpanan pendaftaran harus dilakukan dalam satu transaksi PostgreSQL dengan isolasi serializable.
 
 ### `registration_members`
 
@@ -238,13 +238,16 @@ server/
     validation.ts
     registration-state.ts
     registration-code.ts
-drizzle/
-drizzle.config.ts
+prisma/
+  schema.prisma
+  migrations/
+prisma.config.ts
 data/
-  hsn2026.sqlite
+  registration-uploads/
+  juknis/
 ```
 
-Database production tidak boleh disimpan ke Git. Tambahkan `data/*.sqlite`, `data/*.sqlite-shm`, dan `data/*.sqlite-wal` ke `.gitignore`.
+Database lokal tidak boleh disimpan ke Git. Abaikan file SQLite lama yang dipakai hanya sebagai sumber impor satu kali.
 
 ## 6. API yang Direncanakan
 
@@ -333,9 +336,8 @@ Frontend hanya menampilkan hasil tersebut dan tidak menentukan kelayakan pendaft
 - Tambahkan dependency dengan pnpm.
 - Tambahkan konfigurasi environment:
   - `NUXT_SESSION_PASSWORD` minimal 32 karakter;
-  - `NUXT_DATABASE_PATH`, default `./data/hsn2026.sqlite`.
-- Buat konfigurasi Drizzle, koneksi SQLite tunggal, schema, migration awal, dan seed.
-- Aktifkan foreign key SQLite, WAL mode, dan busy timeout.
+- `DATABASE_URL` untuk koneksi PostgreSQL.
+- Buat schema Prisma, migration PostgreSQL, koneksi Prisma Client, dan seed.
 - Seed satu akun `SUPER_ADMIN`; password dibaca dari environment dan tidak ditulis di repository.
 - Tambahkan `.env.example` tanpa nilai rahasia.
 
@@ -394,7 +396,7 @@ Frontend hanya menampilkan hasil tersebut dan tidak menentukan kelayakan pendaft
 - Normalisasi email dan nomor telepon sebelum pemeriksaan duplikasi.
 - Gunakan parameter query ORM, bukan SQL hasil interpolasi string.
 - Tambahkan panduan setup database, migration, seed admin, backup, dan restore ke `README.md`.
-- Dokumentasikan bahwa SQLite cocok untuk satu instance aplikasi dengan volume pendaftaran HSN 2026; deployment multi-instance memerlukan database bersama dan berada di luar scope.
+- Dokumentasikan kebutuhan PostgreSQL, Prisma migration, backup, restore, dan penyimpanan file unggahan pada deployment.
 
 ## 9. Kriteria Selesai
 
@@ -407,7 +409,7 @@ Frontend hanya menampilkan hasil tersebut dan tidak menentukan kelayakan pendaft
 - Super admin dapat mengelola pengguna, kegiatan, operator, dan seluruh pendaftaran.
 - Operator hanya dapat mengakses kegiatan yang ditugaskan, baik melalui UI maupun API langsung.
 - Akun nonaktif tidak dapat memakai session lama untuk mengakses endpoint admin.
-- Data tersimpan di SQLite dan dapat dimigrasikan serta di-backup secara operasional.
+- Data tersimpan di PostgreSQL dan dapat dimigrasikan serta di-backup secara operasional.
 
 ## 10. Verifikasi yang Diizinkan
 
@@ -429,7 +431,7 @@ Pemeriksaan implementasi dibatasi pada:
 - Export Excel/CSV.
 - Akun/login peserta.
 - Integrasi dengan database eksternal.
-- Deployment multi-instance dengan SQLite bersama.
+- Deployment multi-instance dengan PostgreSQL bersama.
 - Pembuatan test otomatis atau fixture khusus test.
 
 ## 12. Urutan Eksekusi dan Ketergantungan

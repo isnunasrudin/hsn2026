@@ -1,14 +1,14 @@
-import { eq } from 'drizzle-orm'
 import { createError, defineEventHandler, getRouterParam } from 'h3'
 import { db } from '../../../database/client'
-import { activities } from '../../../database/schema'
+import { activityRecord } from '../../../utils/activity'
 import { getQuotaUsed, publicActivityPayload } from '../../../utils/registration'
 
-export default defineEventHandler((event) => {
+export default defineEventHandler(async (event) => {
   const slug = getRouterParam(event, 'slug')
-  const activity = slug ? db.select().from(activities).where(eq(activities.slug, slug)).get() : null
+  const record = slug ? await db.activity.findUnique({ where: { slug } }) : null
 
-  if (!activity || activity.status !== 'PUBLISHED') throw createError({ statusCode: 404, statusMessage: 'Kegiatan tidak ditemukan.' })
+  if (!record || record.status !== 'PUBLISHED') throw createError({ statusCode: 404, statusMessage: 'Kegiatan tidak ditemukan.' })
+  const activity = activityRecord(record)
 
-  return { activity: publicActivityPayload(activity, getQuotaUsed(activity.id, activity.quotaMode)) }
+  return { activity: publicActivityPayload(activity, await getQuotaUsed(activity.id, activity.quotaMode)) }
 })

@@ -1,9 +1,7 @@
-import { eq } from 'drizzle-orm'
 import { createError, defineEventHandler, readBody } from 'h3'
 import { verify } from '@node-rs/argon2'
 import { z } from 'zod'
 import { db } from '../../database/client'
-import { users } from '../../database/schema'
 import {
   assertSameOrigin,
   clearLoginFailures,
@@ -29,23 +27,20 @@ export default defineEventHandler(async (event) => {
   const input = parsedInput.data
   const identity = getLoginIdentity(event, input.email)
 
-  if (isLoginRateLimited(identity)) {
+  if (await isLoginRateLimited(identity)) {
     throw createError({ statusCode: 429, statusMessage: 'Terlalu banyak percobaan login. Coba lagi dalam 15 menit.' })
   }
 
-  const user = db.select().from(users).where(eq(users.email, identity.email)).get()
+  const user = await db.user.findUnique({ where: { email: identity.email } })
   const passwordMatches = user ? await verify(user.passwordHash, input.password) : false
 
   if (!user || !user.isActive || !passwordMatches) {
-    recordLoginFailure(identity)
+    await recordLoginFailure(identity)
     throw createError({ statusCode: 401, statusMessage: 'Email atau password salah.' })
   }
 
-  clearLoginFailures(identity)
-  db.update(users)
-    .set({ lastLoginAt: new Date(), updatedAt: new Date() })
-    .where(eq(users.id, user.id))
-    .run()
+  await clearLoginFailures(identity)
+  await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
   await loginUser(event, user)
 
   return {

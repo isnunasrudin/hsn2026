@@ -1,7 +1,5 @@
-import { eq } from 'drizzle-orm'
 import { createError, defineEventHandler, readBody } from 'h3'
 import { db } from '../../../database/client'
-import { users } from '../../../database/schema'
 import { requireSuperAdmin } from '../../../utils/authorization'
 import { assertSameOrigin } from '../../../utils/auth'
 import { hashPassword, publicUser, userCreateSchema } from '../../../utils/user'
@@ -16,22 +14,18 @@ export default defineEventHandler(async (event) => {
   }
 
   const input = parsedInput.data
-  const existingUser = db.select({ id: users.id }).from(users).where(eq(users.email, input.email)).get()
+  const existingUser = await db.user.findUnique({ where: { email: input.email }, select: { id: true } })
 
   if (existingUser) {
     throw createError({ statusCode: 409, statusMessage: 'Email pengguna sudah digunakan.' })
   }
 
-  const user = db.insert(users).values({
+  const user = await db.user.create({ data: {
     name: input.name,
     email: input.email,
     passwordHash: await hashPassword(input.password),
     role: input.role
-  }).returning().get()
-
-  if (!user) {
-    throw createError({ statusCode: 500, statusMessage: 'Pengguna gagal dibuat.' })
-  }
+  } })
 
   return { user: publicUser(user) }
 })

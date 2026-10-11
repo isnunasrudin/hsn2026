@@ -1,9 +1,9 @@
 import { hash } from '@node-rs/argon2'
-import { eq } from 'drizzle-orm'
 import { createError, type H3Event, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { db } from '../database/client'
-import { users, userRoles } from '../database/schema'
+import type { User } from '../generated/prisma/client'
+import { userRoles } from '../database/schema'
 
 export const userIdSchema = z.coerce.number().int().positive()
 
@@ -35,8 +35,8 @@ export const getUserId = (event: H3Event): number => {
   return parsedId.data
 }
 
-export const getUserOrThrow = (userId: number) => {
-  const user = db.select().from(users).where(eq(users.id, userId)).get()
+export const getUserOrThrow = async (userId: number) => {
+  const user = await db.user.findUnique({ where: { id: userId } })
 
   if (!user) {
     throw createError({ statusCode: 404, statusMessage: 'Pengguna tidak ditemukan.' })
@@ -47,7 +47,7 @@ export const getUserOrThrow = (userId: number) => {
 
 export const hashPassword = (password: string): Promise<string> => hash(password)
 
-export const publicUser = (user: typeof users.$inferSelect) => ({
+export const publicUser = (user: User) => ({
   id: user.id,
   name: user.name,
   email: user.email,

@@ -1,0 +1,166 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../server/generated/prisma"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  OPERATOR
+  @@map("user_role")
+}
+
+enum ActivityType {
+  LOMBA
+  EVENT
+  @@map("activity_type")
+}
+
+enum ActivityStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+  CANCELLED
+  @@map("activity_status")
+}
+
+enum RegistrationMode {
+  INDIVIDUAL
+  TEAM
+  @@map("registration_mode")
+}
+
+enum QuotaMode {
+  REGISTRATION
+  PERSON
+  @@map("quota_mode")
+}
+
+enum RegistrationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  CANCELLED
+  @@map("registration_status")
+}
+
+model User {
+  id             Int          @id @default(autoincrement())
+  name           String
+  email          String       @unique
+  passwordHash   String       @map("password_hash")
+  role           UserRole
+  isActive       Boolean      @default(true) @map("is_active")
+  lastLoginAt    DateTime?    @map("last_login_at") @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  createdActivities Activity[] @relation("ActivityCreator")
+  verifiedRegistrations Registration[] @relation("RegistrationVerifier")
+  activityAssignments ActivityUser[]
+
+  @@map("users")
+}
+
+model Activity {
+  id                     Int               @id @default(autoincrement())
+  type                   ActivityType
+  title                  String
+  organizer              String?
+  slug                   String            @unique
+  description            String?
+  juknisFileName         String?           @map("juknis_file_name")
+  juknisStorageName      String?           @map("juknis_storage_name")
+  juknisMimeType         String?           @map("juknis_mime_type")
+  juknisSize             Int?              @map("juknis_size")
+  image                  String?
+  imageZoom              Float             @default(1) @map("image_zoom")
+  imagePosition          String            @default("right center") @map("image_position")
+  displayOrder           Int               @default(0) @map("display_order")
+  location               String?
+  startsAt               DateTime          @map("starts_at") @db.Timestamptz(3)
+  endsAt                 DateTime?         @map("ends_at") @db.Timestamptz(3)
+  registrationOpensAt    DateTime          @map("registration_opens_at") @db.Timestamptz(3)
+  registrationClosesAt   DateTime          @map("registration_closes_at") @db.Timestamptz(3)
+  registrationMode       RegistrationMode @map("registration_mode")
+  quotaMode              QuotaMode         @map("quota_mode")
+  capacity               Int?
+  minTeamMembers         Int?              @map("min_team_members")
+  maxTeamMembers         Int?              @map("max_team_members")
+  registrationFields     Json              @default("[]") @map("registration_fields")
+  status                 ActivityStatus    @default(DRAFT)
+  createdBy              Int               @map("created_by")
+  createdAt              DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  creator                User              @relation("ActivityCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  registrations          Registration[]
+  operators              ActivityUser[]
+
+  @@index([status, startsAt], map: "activities_status_starts_at_idx")
+  @@map("activities")
+}
+
+model ActivityUser {
+  activityId Int      @map("activity_id")
+  userId     Int      @map("user_id")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([activityId, userId])
+  @@index([userId], map: "activity_users_user_id_idx")
+  @@map("activity_users")
+}
+
+model Registration {
+  id                Int                 @id @default(autoincrement())
+  code              String              @unique
+  activityId        Int                 @map("activity_id")
+  registrantName    String              @map("registrant_name")
+  email             String
+  phone             String
+  institution       String?
+  teamName          String?             @map("team_name")
+  participantCount  Int                 @default(1) @map("participant_count")
+  answers           Json                @default("{}")
+  status            RegistrationStatus  @default(PENDING)
+  operatorNotes     String?             @map("operator_notes")
+  verifiedBy        Int?                @map("verified_by")
+  verifiedAt        DateTime?           @map("verified_at") @db.Timestamptz(3)
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  activity          Activity            @relation(fields: [activityId], references: [id], onDelete: Restrict)
+  verifier          User?               @relation("RegistrationVerifier", fields: [verifiedBy], references: [id], onDelete: SetNull)
+  members           RegistrationMember[]
+
+  @@index([activityId, status], map: "registrations_activity_status_idx")
+  @@index([activityId, createdAt], map: "registrations_activity_created_at_idx")
+  @@unique([activityId, email], where: raw("status IN ('PENDING', 'VERIFIED')"), map: "registrations_active_email_unique")
+  @@unique([activityId, phone], where: raw("status IN ('PENDING', 'VERIFIED')"), map: "registrations_active_phone_unique")
+  @@map("registrations")
+}
+
+model RegistrationMember {
+  id             Int          @id @default(autoincrement())
+  registrationId Int          @map("registration_id")
+  name           String
+  identityNumber String?      @map("identity_number")
+  metadata       Json         @default("{}")
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  @@index([registrationId], map: "registration_members_registration_id_idx")
+  @@map("registration_members")
+}
+
+model LoginAttempt {
+  id          Int      @id @default(autoincrement())
+  email       String
+  ipAddress   String   @map("ip_address")
+  attemptedAt DateTime @default(now()) @map("attempted_at") @db.Timestamptz(3)
+
+  @@index([email, ipAddress, attemptedAt], map: "login_attempts_email_ip_attempted_at_idx")
+  @@map("login_attempts")
+}

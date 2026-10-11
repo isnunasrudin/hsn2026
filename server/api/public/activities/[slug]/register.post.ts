@@ -1,11 +1,11 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { and, eq, inArray } from 'drizzle-orm'
 import { createError, defineEventHandler, getRouterParam, readBody, readMultipartFormData } from 'h3'
 import { z } from 'zod'
-import { db, sqliteClient } from '../../../../database/client'
-import { activities, registrationMembers, registrations } from '../../../../database/schema'
+import { Prisma } from '../../../../generated/prisma/client'
+import { db } from '../../../../database/client'
+import { parseRegistrationFields } from '../../../../database/schema'
 import { assertSameOrigin } from '../../../../utils/auth'
 import { assertRegistrationAnswers, getQuotaUsed, getRegistrationState, makeRegistrationCode, normalizePhone } from '../../../../utils/registration'
 import { registrationUploadDirectory } from '../../../../utils/registration-upload'
@@ -33,9 +33,10 @@ const matchesAccept = (accept: string | undefined, filename: string, mimeType: s
 export default defineEventHandler(async (event) => {
   assertSameOrigin(event)
   const slug = getRouterParam(event, 'slug')
-  const activity = slug ? db.select().from(activities).where(eq(activities.slug, slug)).get() : null
+  const activityRecord = slug ? await db.activity.findUnique({ where: { slug } }) : null
 
-  if (!activity || activity.status !== 'PUBLISHED') throw createError({ statusCode: 404, statusMessage: 'Kegiatan tidak ditemukan.' })
+  if (!activityRecord || activityRecord.status !== 'PUBLISHED') throw createError({ statusCode: 404, statusMessage: 'Kegiatan tidak ditemukan.' })
+  const activity = { ...activityRecord, registrationFields: parseRegistrationFields(activityRecord.registrationFields) }
   if (activity.type === 'EVENT') throw createError({ statusCode: 422, statusMessage: 'Event tidak menggunakan pendaftaran peserta.' })
 
   const multipart = await readMultipartFormData(event)
@@ -85,8 +86,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Pendaftaran individu hanya menerima satu peserta.' })
   }
 
-  let code = makeRegistrationCode()
-  while (db.select({ id: registrations.id }).from(registrations).where(eq(registrations.code, code)).get()) code = makeRegistrationCode()
+  const code = makeRegistrationCode()
   const uploadDirectory = registrationUploadDirectory(code)
   for (const field of activity.registrationFields.filter(field => field.type === 'file')) {
     const part = fileParts.find(candidate => candidate.name === `file_${field.key}`)
@@ -97,29 +97,24 @@ export default defineEventHandler(async (event) => {
     ;(answers as Record<string, unknown>)[field.key] = { ...fileAnswers[field.key], token }
   }
 
-  const result = sqliteClient.transaction(() => {
-    const currentActivity = db.select().from(activities).where(eq(activities.id, activity.id)).get()
+  const result = await db.$transaction(async transaction => {
+    const currentActivity = await transaction.activity.findUnique({ where: { id: activity.id } })
     if (!currentActivity) throw createError({ statusCode: 404, statusMessage: 'Kegiatan tidak ditemukan.' })
-    const used = getQuotaUsed(currentActivity.id, currentActivity.quotaMode)
+    const where = { activityId: currentActivity.id, status: { in: ['PENDING', 'VERIFIED'] as const } }
+    const used = currentActivity.quotaMode === 'PERSON'
+      ? (await transaction.registration.aggregate({ where, _sum: { participantCount: true } }))._sum.participantCount ?? 0
+      : await transaction.registration.count({ where })
     const state = getRegistrationState(currentActivity, used)
     const requestedSlots = currentActivity.quotaMode === 'PERSON' ? input.participantCount : 1
 
     if (state !== 'OPEN' || (currentActivity.capacity !== null && used + requestedSlots > currentActivity.capacity)) throw createError({ statusCode: 409, statusMessage: state === 'FULL' ? 'Kuota kegiatan sudah penuh.' : 'Pendaftaran sedang tidak dibuka.' })
 
-    const duplicate = db.select({ id: registrations.id }).from(registrations).where(and(
-      eq(registrations.activityId, currentActivity.id),
-      inArray(registrations.status, ['PENDING', 'VERIFIED']),
-      eq(registrations.email, input.email)
-    )).get()
-    const duplicatePhone = db.select({ id: registrations.id }).from(registrations).where(and(
-      eq(registrations.activityId, currentActivity.id),
-      inArray(registrations.status, ['PENDING', 'VERIFIED']),
-      eq(registrations.phone, phone)
-    )).get()
+    const duplicate = await transaction.registration.findFirst({ where: { ...where, email: input.email }, select: { id: true } })
+    const duplicatePhone = await transaction.registration.findFirst({ where: { ...where, phone }, select: { id: true } })
 
     if (duplicate || duplicatePhone) throw createError({ statusCode: 409, statusMessage: 'Email atau nomor telepon sudah terdaftar pada kegiatan ini.' })
 
-    const registration = db.insert(registrations).values({
+    const registration = await transaction.registration.create({ data: {
       code,
       activityId: currentActivity.id,
       registrantName: input.registrantName,
@@ -128,13 +123,11 @@ export default defineEventHandler(async (event) => {
       institution: input.institution || null,
       teamName: input.teamName || null,
       participantCount: input.participantCount,
-      answers
-    }).returning().get()
-
-    if (!registration) throw createError({ statusCode: 500, statusMessage: 'Pendaftaran gagal disimpan.' })
-    if (input.members.length > 0) db.insert(registrationMembers).values(input.members.map(member => ({ registrationId: registration.id, name: member.name, identityNumber: member.identityNumber || null }))).run()
+      answers: answers as Prisma.InputJsonValue,
+      members: { create: input.members.map(member => ({ name: member.name, identityNumber: member.identityNumber || null })) }
+    } })
     return registration
-  }).immediate()
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
 
   return { code: result.code, activity: { title: activity.title, slug: activity.slug } }
 })

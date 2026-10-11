@@ -4,5 +4,5 @@ import { getUserId, getUserOrThrow, publicUser } from '../../../utils/user'
 
 export default defineEventHandler(async (event) => {
   await requireSuperAdmin(event)
-  return { user: publicUser(getUserOrThrow(getUserId(event))) }
+  return { user: publicUser(await getUserOrThrow(getUserId(event))) }
 })

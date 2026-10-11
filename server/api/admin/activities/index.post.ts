@@ -1,7 +1,6 @@
-import { eq } from 'drizzle-orm'
 import { createError, defineEventHandler, readBody } from 'h3'
 import { db } from '../../../database/client'
-import { activities } from '../../../database/schema'
+import { Prisma } from '../../../generated/prisma/client'
 import { assertSameOrigin } from '../../../utils/auth'
 import { requireSuperAdmin } from '../../../utils/authorization'
 import { activityInputSchema, activityPayload } from '../../../utils/activity'
@@ -15,17 +14,13 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Data kegiatan tidak valid.' })
   }
 
-  const existing = db.select({ id: activities.id }).from(activities).where(eq(activities.slug, parsedInput.data.slug)).get()
+  const existing = await db.activity.findUnique({ where: { slug: parsedInput.data.slug }, select: { id: true } })
 
   if (existing) {
     throw createError({ statusCode: 409, statusMessage: 'Slug kegiatan sudah digunakan.' })
   }
 
-  const activity = db.insert(activities).values({ ...parsedInput.data, createdBy: user.id }).returning().get()
+  const activity = await db.activity.create({ data: { ...parsedInput.data, registrationFields: parsedInput.data.registrationFields as Prisma.InputJsonValue, createdBy: user.id } })
 
-  if (!activity) {
-    throw createError({ statusCode: 500, statusMessage: 'Kegiatan gagal dibuat.' })
-  }
-
-  return { activity: activityPayload(activity) }
+  return { activity: activityPayload({ ...activity, registrationFields: parsedInput.data.registrationFields }) }
 })

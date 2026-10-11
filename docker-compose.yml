@@ -1,0 +1,46 @@
+networks:
+  jaringanku:
+    external: true
+  internal:
+
+services:
+  db:
+    container_name: ${PROJECT_NAME:-invoice}-db
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-invoice}
+      POSTGRES_USER: ${POSTGRES_USER:-invoice}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - ./postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - internal
+
+  app:
+    container_name: ${PROJECT_NAME:-invoice}
+    image: node:24-bookworm-slim
+    restart: unless-stopped
+    working_dir: /app
+    command:
+      - sh
+      - -c
+      - corepack enable && pnpm install --frozen-lockfile && pnpm build && exec node --env-file=/app/.env /app/.output/server/index.mjs
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-invoice}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-invoice}
+      CI: "true"
+      NITRO_HOST: 0.0.0.0
+      NITRO_PORT: 3000
+    volumes:
+      - ./:/app
+    networks:
+      - jaringanku
+      - internal

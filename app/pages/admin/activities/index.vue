@@ -38,6 +38,7 @@ type ActivityRecord = {
   minTeamMembers: number | null
   maxTeamMembers: number | null
   registrationFields: RegistrationField[]
+  juknis: { name: string | null; mimeType: string | null; size: number | null; url: string } | null
   status: ActivityStatus
 }
 
@@ -82,7 +83,8 @@ const form = reactive({
   minTeamMembers: '',
   maxTeamMembers: '',
   status: 'DRAFT' as ActivityStatus,
-  registrationFields: [] as RegistrationField[]
+  registrationFields: [] as RegistrationField[],
+  juknisFile: null as File | null
 })
 
 const activities = computed(() => data.value?.activities ?? [])
@@ -147,6 +149,7 @@ const resetForm = (): void => {
   form.maxTeamMembers = ''
   form.status = 'DRAFT'
   form.registrationFields = []
+  form.juknisFile = null
   selectedOperatorIds.value = []
 }
 
@@ -162,6 +165,32 @@ const updateFieldOptions = (field: RegistrationField, event: Event): void => {
   const input = event.target
   if (!(input instanceof HTMLInputElement)) return
   field.options = input.value.split(',').map(option => option.trim()).filter(Boolean)
+}
+
+const selectJuknis = (event: Event): void => {
+  const input = event.target
+  if (!(input instanceof HTMLInputElement)) return
+  form.juknisFile = input.files?.[0] ?? null
+}
+
+const uploadJuknis = async (activityId: number): Promise<void> => {
+  if (!form.juknisFile) return
+  const body = new FormData()
+  body.append('file', form.juknisFile)
+  await $fetch(`/api/admin/activities/${activityId}/juknis`, { method: 'POST', body })
+}
+
+const deleteJuknis = async (): Promise<void> => {
+  if (!selectedActivity.value?.juknis) return
+  clearMessages()
+  try {
+    await $fetch(`/api/admin/activities/${selectedActivity.value.id}/juknis`, { method: 'DELETE' })
+    feedback.value = 'Juknis berhasil dihapus.'
+    await refresh()
+    form.juknisFile = null
+  } catch (error: unknown) {
+    errorMessage.value = errorText(error)
+  }
 }
 
 const payload = () => ({
@@ -227,7 +256,8 @@ const createActivity = async (): Promise<void> => {
   isSubmitting.value = true
 
   try {
-    await $fetch('/api/admin/activities', { method: 'POST', body: payload() })
+    const response = await $fetch<{ activity: ActivityRecord }>('/api/admin/activities', { method: 'POST', body: payload() })
+    await uploadJuknis(response.activity.id)
     feedback.value = 'Kegiatan berhasil dibuat.'
     resetForm()
     await reload()
@@ -263,6 +293,7 @@ const editActivity = async (activity: ActivityRecord): Promise<void> => {
   form.maxTeamMembers = activity.maxTeamMembers?.toString() ?? ''
   form.status = activity.status
   form.registrationFields = activity.registrationFields.map(field => ({ ...field, options: field.options ? [...field.options] : [] }))
+  form.juknisFile = null
 
   if (user.value?.role === 'SUPER_ADMIN') {
     try {
@@ -282,6 +313,7 @@ const updateActivity = async (): Promise<void> => {
 
   try {
     await $fetch(`/api/admin/activities/${selectedActivity.value.id}`, { method: 'PATCH', body: payload() })
+    await uploadJuknis(selectedActivity.value.id)
     if (user.value?.role === 'SUPER_ADMIN') {
       await $fetch(`/api/admin/activities/${selectedActivity.value.id}/operators`, { method: 'PUT', body: { userIds: selectedOperatorIds.value } })
     }
@@ -322,6 +354,7 @@ const updateActivity = async (): Promise<void> => {
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Posisi gambar<input v-model="form.imagePosition" class="admin-input" type="text" placeholder="right center"></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Urutan tampil<input v-model="form.displayOrder" class="admin-input" min="0" type="number"></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)] sm:col-span-2">Deskripsi<textarea v-model="form.description" class="admin-input min-h-24" rows="3"></textarea></label>
+      <div class="grid gap-3 rounded-lg border border-[var(--hsn-border-subtle)] p-4 sm:col-span-2"><div><p class="text-sm font-medium text-[var(--hsn-text-secondary)]">Juknis kegiatan</p><p class="mt-1 text-xs leading-5 text-[var(--hsn-text-muted)]">PDF, DOC, atau DOCX maksimal 10 MB. File baru akan menggantikan juknis lama setelah disimpan.</p></div><div v-if="selectedActivity?.juknis" class="flex flex-wrap items-center gap-3 rounded-lg bg-[var(--hsn-surface-secondary)] px-3 py-2 text-sm"><a class="admin-link truncate" :href="selectedActivity.juknis.url" target="_blank" rel="noopener">{{ selectedActivity.juknis.name }}</a><button class="admin-button admin-button-danger px-3 py-2 text-xs" type="button" @click="deleteJuknis">Hapus juknis</button></div><input class="admin-input file:mr-3 file:rounded-md file:border-0 file:bg-[var(--hsn-accent-primary)] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-[#071c1e]" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" @change="selectJuknis"></div>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Mulai kegiatan<input v-model="form.startsAt" class="admin-input" required type="datetime-local"></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Selesai kegiatan<input v-model="form.endsAt" class="admin-input" type="datetime-local"></label>
       <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Pendaftaran dibuka<input v-model="form.registrationOpensAt" class="admin-input" required type="datetime-local"></label>

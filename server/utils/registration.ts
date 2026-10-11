@@ -1,14 +1,12 @@
 import { randomBytes } from 'node:crypto'
-import { and, count, eq, inArray, sum } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db } from '../database/client'
-import { activities, registrations } from '../database/schema'
+import type { Activity, QuotaMode } from '../generated/prisma/client'
+import { type RegistrationField, type RegistrationFile, type RegistrationAnswers } from '../database/schema'
 
 export type RegistrationState = 'DRAFT' | 'NOT_REQUIRED' | 'NOT_OPEN' | 'OPEN' | 'FULL' | 'CLOSED' | 'CANCELLED'
 
 export const activeRegistrationStatuses = ['PENDING', 'VERIFIED'] as const
-export type RegistrationFile = { token: string; name: string; size: number; type: string }
-export type RegistrationAnswers = Record<string, string | number | boolean | readonly string[] | RegistrationFile>
 
 export const normalizePhone = (value: string): string => {
   const digits = value.replace(/[^0-9+]/g, '')
@@ -17,19 +15,16 @@ export const normalizePhone = (value: string): string => {
   return digits
 }
 
-export const getQuotaUsed = (activityId: number, quotaMode: typeof activities.$inferSelect.quotaMode) => {
-  const result = db.select({
-    registrations: count(),
-    people: sum(registrations.participantCount)
-  }).from(registrations).where(and(
-    eq(registrations.activityId, activityId),
-    inArray(registrations.status, activeRegistrationStatuses)
-  )).get()
-
-  return quotaMode === 'PERSON' ? Number(result?.people ?? 0) : Number(result?.registrations ?? 0)
+export const getQuotaUsed = async (activityId: number, quotaMode: QuotaMode): Promise<number> => {
+  const where = { activityId, status: { in: activeRegistrationStatuses } }
+  if (quotaMode === 'PERSON') {
+    const result = await db.registration.aggregate({ where, _sum: { participantCount: true } })
+    return result._sum.participantCount ?? 0
+  }
+  return db.registration.count({ where })
 }
 
-export const getRegistrationState = (activity: typeof activities.$inferSelect, used: number, now = new Date()): RegistrationState => {
+export const getRegistrationState = (activity: Activity, used: number, now = new Date()): RegistrationState => {
   if (activity.status === 'CANCELLED') return 'CANCELLED'
   if (activity.status === 'DRAFT') return 'DRAFT'
   if (activity.type === 'EVENT') return 'NOT_REQUIRED'
@@ -39,17 +34,23 @@ export const getRegistrationState = (activity: typeof activities.$inferSelect, u
   return 'OPEN'
 }
 
-export const quotaRemaining = (activity: typeof activities.$inferSelect, used: number): number | null => activity.capacity === null ? null : Math.max(0, activity.capacity - used)
+export const quotaRemaining = (activity: Activity, used: number): number | null => activity.capacity === null ? null : Math.max(0, activity.capacity - used)
 
 export const makeRegistrationCode = (): string => `HSN26-${randomBytes(4).toString('hex').toUpperCase()}`
 
-export const publicActivityPayload = (activity: typeof activities.$inferSelect, used: number) => ({
+export const publicActivityPayload = (activity: Activity & { registrationFields: RegistrationField[] }, used: number) => ({
   id: activity.id,
   type: activity.type,
   title: activity.title,
   organizer: activity.organizer,
   slug: activity.slug,
   description: activity.description,
+  juknis: activity.juknisStorageName ? {
+    name: activity.juknisFileName,
+    mimeType: activity.juknisMimeType,
+    size: activity.juknisSize,
+    url: `/api/public/activities/${activity.slug}/juknis`
+  } : null,
   image: activity.image,
   imageZoom: activity.imageZoom,
   imagePosition: activity.imagePosition,
@@ -70,7 +71,7 @@ export const publicActivityPayload = (activity: typeof activities.$inferSelect, 
   registrationFields: activity.registrationFields
 })
 
-export const assertRegistrationAnswers = (activity: typeof activities.$inferSelect, answers: Record<string, unknown>): RegistrationAnswers => {
+export const assertRegistrationAnswers = (activity: Activity & { registrationFields: RegistrationField[] }, answers: Record<string, unknown>): RegistrationAnswers => {
   const fields = activity.registrationFields
   const allowedKeys = new Set(fields.map(field => field.key))
 

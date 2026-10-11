@@ -1,7 +1,6 @@
-import { eq } from 'drizzle-orm'
 import { createError, defineEventHandler, readBody } from 'h3'
 import { db } from '../../../database/client'
-import { activities } from '../../../database/schema'
+import { Prisma } from '../../../generated/prisma/client'
 import { assertSameOrigin } from '../../../utils/auth'
 import { requireActivityAccess } from '../../../utils/authorization'
 import { activityInputSchema, activityPatchSchema, activityPayload, assertStatusTransition, getActivityId, getActivityOrThrow } from '../../../utils/activity'
@@ -10,7 +9,7 @@ export default defineEventHandler(async (event) => {
   assertSameOrigin(event)
   await requireActivityAccess(event, getActivityId(event))
   const activityId = getActivityId(event)
-  const current = getActivityOrThrow(activityId)
+  const current = await getActivityOrThrow(activityId)
   const parsedPatch = activityPatchSchema.safeParse(await readBody(event))
 
   if (!parsedPatch.success) {
@@ -26,17 +25,13 @@ export default defineEventHandler(async (event) => {
   assertStatusTransition(current.status, merged.data.status)
 
   if (merged.data.slug !== current.slug) {
-    const existing = db.select({ id: activities.id }).from(activities).where(eq(activities.slug, merged.data.slug)).get()
+    const existing = await db.activity.findUnique({ where: { slug: merged.data.slug }, select: { id: true } })
     if (existing && existing.id !== activityId) {
       throw createError({ statusCode: 409, statusMessage: 'Slug kegiatan sudah digunakan.' })
     }
   }
 
-  const activity = db.update(activities).set({ ...merged.data, updatedAt: new Date() }).where(eq(activities.id, activityId)).returning().get()
+  const activity = await db.activity.update({ where: { id: activityId }, data: { ...merged.data, registrationFields: merged.data.registrationFields as Prisma.InputJsonValue } })
 
-  if (!activity) {
-    throw createError({ statusCode: 404, statusMessage: 'Kegiatan tidak ditemukan.' })
-  }
-
-  return { activity: activityPayload(activity) }
+  return { activity: activityPayload({ ...activity, registrationFields: merged.data.registrationFields }) }
 })

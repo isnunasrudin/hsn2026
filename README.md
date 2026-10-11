@@ -1,6 +1,6 @@
 # HSN 2026
 
-Aplikasi Hari Santri Nasional 2026 PCNU Trenggalek, dibangun dengan Nuxt 4 dan SQLite.
+Aplikasi Hari Santri Nasional 2026 PCNU Trenggalek, dibangun dengan Nuxt 4, PostgreSQL, dan Prisma ORM.
 
 ## Setup
 
@@ -16,16 +16,18 @@ Salin konfigurasi environment, lalu isi secret session dan akun super admin:
 cp .env.example .env
 ```
 
-`NUXT_SESSION_PASSWORD` wajib berupa secret acak minimal 32 karakter. Jangan gunakan nilai contoh untuk production.
+`NUXT_SESSION_PASSWORD` wajib berupa secret acak minimal 32 karakter. `DATABASE_URL` harus menunjuk database PostgreSQL yang sudah dibuat. Jangan gunakan nilai contoh untuk production.
 
 ## Database
 
-Generate dan terapkan migration SQLite:
+Generate Prisma Client dan terapkan migration PostgreSQL yang sudah tercatat:
 
 ```bash
 pnpm db:generate
 pnpm db:migrate
 ```
+
+Untuk membuat migration saat mengubah `prisma/schema.prisma`, jalankan `pnpm db:migrate:dev --name nama_perubahan` di database pengembangan. Jangan gunakan `migrate dev` pada production.
 
 Buat atau perbarui akun super admin dari nilai `ADMIN_*` di `.env`:
 
@@ -33,7 +35,16 @@ Buat atau perbarui akun super admin dari nilai `ADMIN_*` di `.env`:
 pnpm db:seed
 ```
 
-Database lokal tersimpan di `data/hsn2026.sqlite` secara default dan tidak masuk Git. Koneksi mengaktifkan foreign key, WAL, serta busy timeout lima detik.
+`DATABASE_URL` adalah satu-satunya konfigurasi koneksi database. Seluruh operasi data server memakai Prisma Client; file unggahan tetap disimpan di `NUXT_DATA_DIR` (default `./data`) dan perlu dipertahankan saat deployment.
+
+Untuk memindahkan database SQLite lama, buat database PostgreSQL kosong, terapkan migration, lalu jalankan importer satu kali:
+
+```bash
+pnpm db:migrate
+pnpm db:import-sqlite -- ./data/hsn2026.sqlite
+```
+
+Importer membaca SQLite dalam mode read-only dan menyimpan seluruh tabel melalui Prisma Client. PostgreSQL tujuan harus kosong. File juknis dan unggahan pendaftaran tidak berada di database; pertahankan direktori `NUXT_DATA_DIR` saat memindahkan aplikasi.
 
 ## Autentikasi
 
@@ -73,7 +84,7 @@ Pendaftaran publik tersedia di `/kegiatan` dengan endpoint berikut:
 - `POST /api/public/activities/:slug/register` untuk membuat pendaftaran individu atau tim.
 - `GET /api/public/registrations/:code` untuk halaman konfirmasi menggunakan kode pendaftaran.
 
-Pendaftaran memeriksa periode, kapasitas sesuai mode kuota, email dan nomor telepon aktif yang duplikat, serta menyimpan pembuatan pendaftar dan anggota tim dalam satu transaksi SQLite.
+Pendaftaran memeriksa periode, kapasitas sesuai mode kuota, email dan nomor telepon aktif yang duplikat, serta menyimpan pendaftar dan anggota tim dalam satu transaksi Prisma pada PostgreSQL.
 
 Kegiatan bertipe `EVENT` hanya ditampilkan sebagai agenda/detail dan tidak memerlukan pendaftaran. Pendaftaran hanya tersedia untuk kegiatan bertipe `LOMBA`; endpoint server juga menolak pendaftaran langsung ke event.
 
@@ -83,7 +94,7 @@ Pengelolaan pendaftar tersedia pada `/admin/registrations/:activityId` untuk aku
 - `GET /api/admin/registrations/:id` untuk detail pendaftar dan anggota tim.
 - `PATCH /api/admin/registrations/:id` untuk mengubah status dan catatan operator.
 
-Status `VERIFIED` mencatat operator serta waktu verifikasi. Perubahan status yang mengaktifkan kembali pendaftar memeriksa kapasitas dalam transaksi SQLite; status `REJECTED` dan `CANCELLED` otomatis tidak lagi dihitung sebagai kuota aktif.
+Status `VERIFIED` mencatat operator serta waktu verifikasi. Perubahan status yang mengaktifkan kembali pendaftar memeriksa kapasitas dalam transaksi PostgreSQL; status `REJECTED` dan `CANCELLED` otomatis tidak lagi dihitung sebagai kuota aktif.
 
 Landing page menyediakan akses ke katalog kegiatan melalui `/kegiatan`. Roadmap `/timeline` membaca kegiatan `PUBLISHED` dari endpoint publik yang sama, mengelompokkannya berdasarkan tanggal, dan menautkan setiap agenda ke halaman detail. Data awal roadmap disediakan oleh seed database, termasuk penyelenggara, rentang waktu, gambar overlay, zoom, dan posisi gambar.
 
