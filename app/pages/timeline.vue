@@ -30,7 +30,7 @@
           </div>
           <div class="roadmap-group__body">
             <div class="roadmap-date">
-              <time :datetime="group.datetime">{{ group.date }}</time>
+              <time :datetime="group.datetime || undefined">{{ group.date }}</time>
               <span>{{ group.items.length }} kegiatan</span>
             </div>
             <ol class="roadmap-events">
@@ -103,7 +103,7 @@ type PublicActivity = {
   imageZoom: number
   imagePosition: string
   location: string | null
-  startsAt: string
+  startsAt: string | null
   endsAt: string | null
 }
 
@@ -112,8 +112,8 @@ const timelineItems = computed(() => {
   const activities = activitiesData.value?.activities ?? []
   return activities.map(activity => ({
     ...activity,
-    date: formatIndonesiaDate(activity.startsAt),
-    datetime: getIndonesiaDateKey(activity.startsAt),
+    date: formatIndonesiaDate(activity.startsAt) || 'Jadwal belum ditentukan',
+    datetime: activity.startsAt ? getIndonesiaDateKey(activity.startsAt) : null,
     time: formatIndonesiaTimeRange(activity.startsAt, activity.endsAt),
     pj: activity.organizer || activity.type,
     tone: activity.type === 'LOMBA' ? 'teal' : 'gold'
@@ -121,11 +121,12 @@ const timelineItems = computed(() => {
 })
 
 const timelineGroups = computed(() => {
-  const groups = new Map<string, { key: string; date: string; datetime: string; items: typeof timelineItems.value }>()
+  const groups = new Map<string, { key: string; date: string; datetime: string | null; items: typeof timelineItems.value }>()
   for (const item of timelineItems.value) {
-    const group = groups.get(item.datetime)
+    const key = item.datetime ?? 'undated'
+    const group = groups.get(key)
     if (group) group.items.push(item)
-    else groups.set(item.datetime, { key: item.datetime, date: item.date, datetime: item.datetime, items: [item] })
+    else groups.set(key, { key, date: item.date, datetime: item.datetime, items: [item] })
   }
   return [...groups.values()]
 })

@@ -2,7 +2,7 @@
 import { formatIndonesiaDateRange, formatIndonesiaDateTimeRange } from '~/utils/date'
 
 type Field = { key: string; label: string; type: string; required: boolean; options?: string[] }
-type Activity = { title: string; type: string; description: string | null; image: string | null; location: string | null; startsAt: string; endsAt: string | null; registrationOpensAt: string; registrationClosesAt: string; registrationMode: string; capacity: number | null; quotaRemaining: number | null; registrationState: string; registrationFields: Field[]; externalRegistrationUrl: string | null; minTeamMembers: number | null; maxTeamMembers: number | null; juknis: { name: string | null; mimeType: string | null; size: number | null; url: string } | null }
+type Activity = { title: string; type: string; description: string | null; image: string | null; location: string | null; contactPerson: string | null; contactPhone: string | null; startsAt: string | null; endsAt: string | null; registrationOpensAt: string | null; registrationClosesAt: string | null; registrationMode: string; capacity: number | null; quotaRemaining: number | null; registrationState: string; registrationFields: Field[]; externalRegistrationUrl: string | null; minTeamMembers: number | null; maxTeamMembers: number | null; juknis: { name: string | null; mimeType: string | null; size: number | null; url: string } | null }
 
 const route = useRoute()
 const { data, pending, error } = await useFetch<{ activity: Activity }>(() => `/api/public/activities/${route.params.slug}`)
@@ -12,6 +12,7 @@ const needsRegistration = computed(() => activity.value?.type === 'LOMBA')
 const isDetailRoute = computed(() => route.path === `/kegiatan/${route.params.slug}`)
 const stateMessage = (state: string): string => ({ NOT_REQUIRED: 'Event ini tidak memerlukan pendaftaran peserta.', NOT_OPEN: 'Pendaftaran belum dibuka.', FULL: 'Kuota kegiatan sudah penuh.', CLOSED: 'Pendaftaran kegiatan sudah ditutup.', CANCELLED: 'Kegiatan ini dibatalkan.' }[state] ?? 'Pendaftaran saat ini belum tersedia.')
 const fileSize = (size: number | null): string => size ? `${(size / 1024 / 1024).toFixed(2)} MB` : 'Dokumen'
+const whatsappUrl = (phone: string): string => `https://wa.me/${phone.replace(/\D/g, '').replace(/^0/, '62')}`
 </script>
 
 <template>
@@ -30,6 +31,7 @@ const fileSize = (size: number | null): string => size ? `${(size / 1024 / 1024)
           <dl class="mt-8 grid gap-4 border-t border-[var(--hsn-border-subtle)] pt-6 sm:grid-cols-2">
             <div><dt class="text-xs uppercase tracking-[.12em] text-[var(--hsn-text-muted)]">Pelaksanaan</dt><dd class="mt-2 text-sm text-[var(--hsn-text-primary)]">{{ formatIndonesiaDateTimeRange(activity.startsAt, activity.endsAt) }}</dd></div>
             <div><dt class="text-xs uppercase tracking-[.12em] text-[var(--hsn-text-muted)]">Lokasi</dt><dd class="mt-2 text-sm text-[var(--hsn-text-primary)]">{{ activity.location || 'Menyusul' }}</dd></div>
+            <div v-if="activity.contactPerson || activity.contactPhone"><dt class="text-xs uppercase tracking-[.12em] text-[var(--hsn-text-muted)]">Contact person</dt><dd class="mt-2 text-sm text-[var(--hsn-text-primary)]">{{ activity.contactPerson || 'Panitia' }}<br><a v-if="activity.contactPhone" class="admin-link" :href="whatsappUrl(activity.contactPhone)" target="_blank" rel="noopener noreferrer">{{ activity.contactPhone }} · WhatsApp</a></dd></div>
             <div v-if="needsRegistration"><dt class="text-xs uppercase tracking-[.12em] text-[var(--hsn-text-muted)]">Periode pendaftaran</dt><dd class="mt-2 text-sm text-[var(--hsn-text-primary)]">{{ formatIndonesiaDateRange(activity.registrationOpensAt, activity.registrationClosesAt) }}</dd></div>
             <div v-if="needsRegistration && !activity.externalRegistrationUrl"><dt class="text-xs uppercase tracking-[.12em] text-[var(--hsn-text-muted)]">Kuota tersisa</dt><dd class="mt-2 text-sm text-[var(--hsn-text-primary)]">{{ activity.quotaRemaining === null ? 'Tanpa batas' : activity.quotaRemaining }}</dd></div>
           </dl>

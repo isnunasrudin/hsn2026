@@ -13,7 +13,7 @@ type Activity = {
   imageZoom: number
   imagePosition: string
   location: string | null
-  startsAt: string
+  startsAt: string | null
   endsAt: string | null
   registrationState: string
 }

@@ -19,19 +19,21 @@ type RegistrationField = {
 type ActivityRecord = {
   id: number
   type: ActivityType
-  title: string
+  title: string | null
   organizer: string | null
-  slug: string
+  contactPerson: string | null
+  contactPhone: string | null
+  slug: string | null
   description: string | null
   image: string | null
   imageZoom: number
   imagePosition: string
   displayOrder: number
   location: string | null
-  startsAt: string
+  startsAt: string | null
   endsAt: string | null
-  registrationOpensAt: string
-  registrationClosesAt: string
+  registrationOpensAt: string | null
+  registrationClosesAt: string | null
   registrationMode: RegistrationMode
   quotaMode: QuotaMode
   capacity: number | null
@@ -61,12 +63,15 @@ const deleteId = ref<number | null>(null)
 const deleteTitle = ref('')
 const isDeleting = ref(false)
 const selectedOperatorIds = ref<number[]>([])
+const isSlugManuallyEdited = ref(false)
 const filters = reactive({ q: '', type: 'ALL' as ActivityType | 'ALL', status: 'ALL' as ActivityStatus | 'ALL' })
 
 const form = reactive({
   type: 'EVENT' as ActivityType,
   title: '',
   organizer: '',
+  contactPerson: '',
+  contactPhone: '',
   slug: '',
   description: '',
   image: '',
@@ -90,11 +95,22 @@ const form = reactive({
   juknisFile: null as File | null
 })
 
+const slugFromTitle = (title: string): string => title
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '')
+
+watch(() => form.title, (title) => {
+  if (!isSlugManuallyEdited.value) form.slug = slugFromTitle(title)
+}, { flush: 'sync' })
+
 const activities = computed(() => data.value?.activities ?? [])
 const filteredActivities = computed(() => {
   const query = filters.q.trim().toLowerCase()
   return activities.value.filter((activity) => {
-    const matchesQuery = !query || `${activity.title} ${activity.slug} ${activity.organizer ?? ''} ${activity.location ?? ''}`.toLowerCase().includes(query)
+    const matchesQuery = !query || `${activity.title ?? ''} ${activity.slug ?? ''} ${activity.organizer ?? ''} ${activity.location ?? ''}`.toLowerCase().includes(query)
     const matchesType = filters.type === 'ALL' || activity.type === filters.type
     const matchesStatus = filters.status === 'ALL' || activity.status === filters.status
     return matchesQuery && matchesType && matchesStatus
@@ -164,7 +180,8 @@ const syncEndOfDay = (event: Event, endField: 'endsAt' | 'registrationClosesAt')
   form[endField] = `${date}T23:59`
 }
 
-const eventRegistrationWindow = (): { opensAt: string; closesAt: string } => {
+const eventRegistrationWindow = (): { opensAt: string | null; closesAt: string | null } => {
+  if (!form.startsAt) return { opensAt: null, closesAt: null }
   const startsAt = new Date(form.startsAt)
   const endsAt = form.endsAt ? new Date(form.endsAt) : new Date(startsAt.getTime() + 60 * 60 * 1000)
   const closesAt = endsAt.getTime() > startsAt.getTime() ? endsAt : new Date(startsAt.getTime() + 60 * 60 * 1000)
@@ -173,9 +190,12 @@ const eventRegistrationWindow = (): { opensAt: string; closesAt: string } => {
 
 const resetForm = (): void => {
   inactiveSystemFields.clear()
+  isSlugManuallyEdited.value = false
   form.type = 'EVENT'
   form.title = ''
   form.organizer = ''
+  form.contactPerson = ''
+  form.contactPhone = ''
   form.slug = ''
   form.description = ''
   form.image = ''
@@ -207,6 +227,10 @@ const addRegistrationField = (): void => {
 }
 
 const removeRegistrationField = (index: number): void => {
+  if (form.status !== 'PUBLISHED') {
+    form.registrationFields.splice(index, 1)
+    return
+  }
   if (systemFieldKeys.includes(form.registrationFields[index]?.key ?? '')) return
   form.registrationFields.splice(index, 1)
 }
@@ -245,19 +269,21 @@ const deleteJuknis = async (): Promise<void> => {
 
 const payload = () => ({
   type: form.type,
-  title: form.title,
+  title: form.title.trim() || null,
   organizer: form.organizer || null,
-  slug: form.slug,
+  contactPerson: form.contactPerson.trim() || null,
+  contactPhone: form.contactPhone.trim() || null,
+  slug: form.slug.trim() || null,
   description: form.description || null,
   image: form.image || null,
-  imageZoom: Number(form.imageZoom),
-  imagePosition: form.imagePosition,
+  imageZoom: Number(form.imageZoom) || 1,
+  imagePosition: form.imagePosition.trim() || 'right center',
   displayOrder: Number(form.displayOrder),
   location: form.location || null,
-  startsAt: toIso(form.startsAt),
+  startsAt: form.startsAt ? toIso(form.startsAt) : null,
   endsAt: form.endsAt ? toIso(form.endsAt) : null,
-  registrationOpensAt: isRegistrationActivity.value ? toIso(form.registrationOpensAt) : eventRegistrationWindow().opensAt,
-  registrationClosesAt: isRegistrationActivity.value ? toIso(form.registrationClosesAt) : eventRegistrationWindow().closesAt,
+  registrationOpensAt: isRegistrationActivity.value ? (form.registrationOpensAt ? toIso(form.registrationOpensAt) : null) : eventRegistrationWindow().opensAt,
+  registrationClosesAt: isRegistrationActivity.value ? (form.registrationClosesAt ? toIso(form.registrationClosesAt) : null) : eventRegistrationWindow().closesAt,
   registrationMode: isRegistrationActivity.value ? form.registrationMode : 'INDIVIDUAL',
   quotaMode: isRegistrationActivity.value ? form.quotaMode : 'REGISTRATION',
   capacity: isRegistrationActivity.value && form.capacity ? Number(form.capacity) : null,
@@ -283,7 +309,7 @@ const closeEditor = (): void => {
 const requestDelete = (activity: ActivityRecord): void => {
   clearMessages()
   deleteId.value = activity.id
-  deleteTitle.value = activity.title
+  deleteTitle.value = activity.title || 'Draf tanpa judul'
 }
 
 const deleteActivity = async (): Promise<void> => {
@@ -325,9 +351,12 @@ const editActivity = async (activity: ActivityRecord): Promise<void> => {
   editingId.value = activity.id
   isCreateOpen.value = false
   form.type = activity.type
-  form.title = activity.title
+  form.title = activity.title ?? ''
   form.organizer = activity.organizer ?? ''
-  form.slug = activity.slug
+  form.contactPerson = activity.contactPerson ?? ''
+  form.contactPhone = activity.contactPhone ?? ''
+  form.slug = activity.slug ?? ''
+  isSlugManuallyEdited.value = false
   form.description = activity.description ?? ''
   form.image = activity.image ?? ''
   form.imageZoom = activity.imageZoom
@@ -402,9 +431,11 @@ const updateActivity = async (): Promise<void> => {
     <form class="grid gap-5 sm:grid-cols-2" @submit.prevent="editingId ? updateActivity() : createActivity()">
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Jenis<select v-model="form.type" class="admin-input"><option value="EVENT">Event</option><option value="LOMBA">Lomba</option></select></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Status<select v-model="form.status" class="admin-input"><option value="DRAFT">Draft</option><option value="PUBLISHED">Published</option><option value="CLOSED">Closed</option><option value="CANCELLED">Cancelled</option></select></label>
-      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)] sm:col-span-2">Judul<input v-model="form.title" class="admin-input" required type="text"></label>
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)] sm:col-span-2">Judul<input v-model="form.title" class="admin-input" :required="form.status === 'PUBLISHED'" type="text"></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Penyelenggara / PJ<input v-model="form.organizer" class="admin-input" type="text" placeholder="PCNU Trenggalek"></label>
-      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Slug<input v-model="form.slug" class="admin-input" required type="text" placeholder="seminar-santri"></label>
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Nama CP<input v-model="form.contactPerson" class="admin-input" type="text" placeholder="Nama contact person"></label>
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Nomor WhatsApp CP<input v-model="form.contactPhone" class="admin-input" type="tel" placeholder="08xxxxxxxxxx"></label>
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Slug<input v-model="form.slug" class="admin-input" :required="form.status === 'PUBLISHED'" type="text" placeholder="otomatis-dari-judul" @input="isSlugManuallyEdited = true"></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Lokasi<input v-model="form.location" class="admin-input" type="text" placeholder="Gedung PCNU Trenggalek"></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)] sm:col-span-2">Path gambar publik<input v-model="form.image" class="admin-input" type="text" placeholder="/images/kegiatan.webp"></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Zoom gambar<input v-model="form.imageZoom" class="admin-input" max="5" min="0.1" step="0.1" type="number"></label>
@@ -412,31 +443,31 @@ const updateActivity = async (): Promise<void> => {
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Urutan tampil<input v-model="form.displayOrder" class="admin-input" min="0" type="number"></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)] sm:col-span-2">Deskripsi<textarea v-model="form.description" class="admin-input min-h-24" rows="3"></textarea></label>
       <div class="grid gap-3 rounded-lg border border-[var(--hsn-border-subtle)] p-4 sm:col-span-2"><div><p class="text-sm font-medium text-[var(--hsn-text-secondary)]">Juknis kegiatan</p><p class="mt-1 text-xs leading-5 text-[var(--hsn-text-muted)]">PDF, DOC, atau DOCX maksimal 10 MB. File baru akan menggantikan juknis lama setelah disimpan.</p></div><div v-if="selectedActivity?.juknis" class="flex flex-wrap items-center gap-3 rounded-lg bg-[var(--hsn-surface-secondary)] px-3 py-2 text-sm"><a class="admin-link truncate" :href="selectedActivity.juknis.url" target="_blank" rel="noopener">{{ selectedActivity.juknis.name }}</a><button class="admin-button admin-button-danger px-3 py-2 text-xs" type="button" @click="deleteJuknis">Hapus juknis</button></div><input class="admin-input file:mr-3 file:rounded-md file:border-0 file:bg-[var(--hsn-accent-primary)] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-[#071c1e]" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" @change="selectJuknis"></div>
-      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Mulai kegiatan<input v-model="form.startsAt" class="admin-input" required type="datetime-local" @input="syncEndOfDay($event, 'endsAt')"></label>
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Mulai kegiatan (opsional)<input v-model="form.startsAt" class="admin-input" type="datetime-local" @input="syncEndOfDay($event, 'endsAt')"></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Selesai kegiatan<input v-model="form.endsAt" class="admin-input" type="datetime-local"></label>
-      <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Pendaftaran dibuka<input v-model="form.registrationOpensAt" class="admin-input" required type="datetime-local" @input="syncEndOfDay($event, 'registrationClosesAt')"></label>
-      <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Pendaftaran ditutup<input v-model="form.registrationClosesAt" class="admin-input" required type="datetime-local"></label>
+      <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Pendaftaran dibuka<input v-model="form.registrationOpensAt" class="admin-input" :required="form.status === 'PUBLISHED'" type="datetime-local" @input="syncEndOfDay($event, 'registrationClosesAt')"></label>
+      <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Pendaftaran ditutup<input v-model="form.registrationClosesAt" class="admin-input" :required="form.status === 'PUBLISHED'" type="datetime-local"></label>
       <div v-if="isRegistrationActivity" class="grid gap-3 sm:col-span-2">
         <label class="flex items-center gap-3 text-sm text-[var(--hsn-text-secondary)]"><input v-model="form.useExternalRegistration" class="size-4 accent-[var(--hsn-accent-primary)]" type="checkbox"><span>Gunakan tautan pendaftaran eksternal</span></label>
         <p class="text-xs leading-5 text-[var(--hsn-text-muted)]">Aktifkan untuk Google Forms atau situs pendaftaran lain. Jika dimatikan, peserta memakai formulir internal.</p>
-        <label v-if="form.useExternalRegistration" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">URL formulir eksternal<input v-model="form.externalRegistrationUrl" class="admin-input" type="url" inputmode="url" placeholder="https://forms.gle/..." autocomplete="url" required><span class="text-xs leading-5 text-[var(--hsn-text-muted)]">Gunakan alamat lengkap yang diawali http:// atau https://.</span></label>
+        <label v-if="form.useExternalRegistration" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">URL formulir eksternal<input v-model="form.externalRegistrationUrl" class="admin-input" type="url" inputmode="url" placeholder="https://forms.gle/..." autocomplete="url" :required="form.status === 'PUBLISHED'"><span class="text-xs leading-5 text-[var(--hsn-text-muted)]">Gunakan alamat lengkap yang diawali http:// atau https://.</span></label>
       </div>
       <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Mode peserta<select v-model="form.registrationMode" class="admin-input"><option value="INDIVIDUAL">Individu</option><option value="TEAM">Tim</option></select></label>
       <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Mode kuota<select v-model="form.quotaMode" class="admin-input"><option value="REGISTRATION">Per pendaftaran</option><option value="PERSON">Per orang</option></select></label>
       <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Kapasitas<input v-model="form.capacity" class="admin-input" min="1" type="number" placeholder="Kosong = tanpa batas"></label>
-      <template v-if="isRegistrationActivity && form.registrationMode === 'TEAM'"><label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Minimal anggota<input v-model="form.minTeamMembers" class="admin-input" min="1" required type="number"></label><label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Maksimal anggota<input v-model="form.maxTeamMembers" class="admin-input" min="1" required type="number"></label></template>
+      <template v-if="isRegistrationActivity && form.registrationMode === 'TEAM'"><label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Minimal anggota<input v-model="form.minTeamMembers" class="admin-input" min="1" :required="form.status === 'PUBLISHED'" type="number"></label><label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Maksimal anggota<input v-model="form.maxTeamMembers" class="admin-input" min="1" :required="form.status === 'PUBLISHED'" type="number"></label></template>
       <div v-if="isRegistrationActivity" class="grid gap-3 sm:col-span-2">
         <div class="flex items-center justify-between gap-4">
-          <div><p class="text-sm font-medium text-[var(--hsn-text-secondary)]">Formulir pendaftaran</p><p class="mt-1 text-xs leading-5 text-[var(--hsn-text-muted)]">Field bawaan sudah disiapkan. Ubah labelnya, lalu tambahkan field sesuai kebutuhan lomba.</p></div>
+          <div><p class="text-sm font-medium text-[var(--hsn-text-secondary)]">Formulir pendaftaran</p><p class="mt-1 text-xs leading-5 text-[var(--hsn-text-muted)]">Field bawaan sudah disiapkan. Ubah labelnya, lalu tambahkan field sesuai kebutuhan lomba. Sebelum dipublikasikan, semua field boleh dihapus.</p></div>
           <button class="admin-button admin-button-secondary px-3 py-2 text-xs" type="button" @click="addRegistrationField">Tambah field</button>
         </div>
         <div v-for="(field, index) in form.registrationFields" :key="`${field.key}-${index}`" class="grid gap-3 rounded-lg border border-[var(--hsn-border-subtle)] p-4 sm:grid-cols-[1fr_1fr_160px_auto]">
-          <label class="grid gap-2 text-xs text-[var(--hsn-text-muted)]">Key<input v-model="field.key" class="admin-input text-sm" :readonly="systemFieldKeys.includes(field.key)" required type="text" placeholder="asal_sekolah"></label>
-          <label class="grid gap-2 text-xs text-[var(--hsn-text-muted)]">Label<input v-model="field.label" class="admin-input text-sm" required type="text" placeholder="Asal sekolah"></label>
+          <label class="grid gap-2 text-xs text-[var(--hsn-text-muted)]">Key<input v-model="field.key" class="admin-input text-sm" :readonly="systemFieldKeys.includes(field.key)" :required="form.status === 'PUBLISHED'" type="text" placeholder="asal_sekolah"></label>
+          <label class="grid gap-2 text-xs text-[var(--hsn-text-muted)]">Label<input v-model="field.label" class="admin-input text-sm" :required="form.status === 'PUBLISHED'" type="text" placeholder="Asal sekolah"></label>
           <label class="grid gap-2 text-xs text-[var(--hsn-text-muted)]">Tipe<select v-model="field.type" class="admin-input text-sm" :disabled="systemFieldKeys.includes(field.key)"><option value="text">Teks</option><option value="textarea">Paragraf</option><option value="number">Angka</option><option value="email">Email</option><option value="tel">Nomor telepon</option><option value="select">Pilihan</option><option value="radio">Radio</option><option value="checkbox">Checkbox</option><option value="file">File</option></select></label>
           <div class="flex items-end gap-2">
             <label class="flex items-center gap-2 pb-3 text-xs text-[var(--hsn-text-secondary)]"><input v-model="field.required" :disabled="['registrant_name', 'email', 'phone', 'team_name', 'participant_count', 'member_name'].includes(field.key)" type="checkbox"> Wajib</label>
-            <button v-if="!systemFieldKeys.includes(field.key)" class="admin-button admin-button-secondary px-3 py-2 text-xs" type="button" @click="removeRegistrationField(index)">Hapus</button>
+            <button v-if="form.status !== 'PUBLISHED' || !systemFieldKeys.includes(field.key)" class="admin-button admin-button-secondary px-3 py-2 text-xs" type="button" @click="removeRegistrationField(index)">Hapus</button>
             <span v-else class="pb-3 text-[11px] text-[var(--hsn-text-muted)]">Field sistem</span>
           </div>
           <label v-if="['select', 'radio'].includes(field.type)" class="grid gap-2 text-xs text-[var(--hsn-text-muted)] sm:col-span-4">Pilihan, pisahkan dengan koma<input :value="field.options?.join(', ')" class="admin-input text-sm" type="text" @input="updateFieldOptions(field, $event)"></label>
@@ -462,9 +493,9 @@ const updateActivity = async (): Promise<void> => {
             <template v-for="group in filteredActivityGroups" :key="group.key">
               <tr v-if="group.items.length > 1"><td colspan="5" class="bg-[var(--hsn-surface-secondary)] font-semibold text-[var(--hsn-text-primary)]">{{ group.date }}</td></tr>
               <tr v-for="activity in group.items" :key="activity.id">
-                <td><p class="font-medium text-[var(--hsn-text-primary)]">{{ activity.title }}</p><p class="mt-1 text-sm text-[var(--hsn-text-muted)]">{{ activity.type }} · /{{ activity.slug }}</p></td>
-                <td class="text-sm text-[var(--hsn-text-secondary)]">{{ group.items.length === 1 ? formatIndonesiaDateTimeRange(activity.startsAt, activity.endsAt) : formatIndonesiaTimeRange(activity.startsAt, activity.endsAt) }}</td>
-                <td class="text-sm text-[var(--hsn-text-secondary)]"><span v-if="activity.type === 'LOMBA'">{{ formatIndonesiaDateRange(activity.registrationOpensAt, activity.registrationClosesAt) }}</span><span v-else>Tanpa pendaftaran</span></td>
+                <td><p class="font-medium text-[var(--hsn-text-primary)]">{{ activity.title || 'Draf belum berjudul' }}</p><p class="mt-1 text-sm text-[var(--hsn-text-muted)]">{{ activity.type }}<span v-if="activity.slug"> · /{{ activity.slug }}</span></p></td>
+                <td class="text-sm text-[var(--hsn-text-secondary)]">{{ activity.startsAt ? (group.items.length === 1 ? formatIndonesiaDateTimeRange(activity.startsAt, activity.endsAt) : formatIndonesiaTimeRange(activity.startsAt, activity.endsAt)) : 'Jadwal belum ditentukan' }}</td>
+                <td class="text-sm text-[var(--hsn-text-secondary)]"><span v-if="activity.type === 'LOMBA'">{{ activity.registrationOpensAt && activity.registrationClosesAt ? formatIndonesiaDateRange(activity.registrationOpensAt, activity.registrationClosesAt) : 'Periode belum ditentukan' }}</span><span v-else>Tanpa pendaftaran</span></td>
                 <td><span class="admin-badge-accent rounded-full px-2.5 py-1 text-xs font-semibold">{{ activity.status }}</span></td>
                 <td><div class="flex justify-end gap-2"><NuxtLink v-if="activity.type === 'LOMBA'" class="admin-button admin-button-secondary px-3 py-2 text-xs" :to="`/admin/registrations/${activity.id}`">Pendaftar</NuxtLink><button class="admin-button admin-button-secondary px-3 py-2 text-xs" type="button" @click="editActivity(activity)">Edit</button><button class="admin-button admin-button-danger px-3 py-2 text-xs" type="button" @click="requestDelete(activity)">Hapus</button></div></td>
               </tr>

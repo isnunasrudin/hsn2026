@@ -68,9 +68,11 @@ model User {
 model Activity {
   id                     Int               @id @default(autoincrement())
   type                   ActivityType
-  title                  String
+  title                  String?
   organizer              String?
-  slug                   String            @unique
+  contactPerson          String?           @map("contact_person")
+  contactPhone           String?           @map("contact_phone")
+  slug                   String?           @unique
   description            String?
   juknisFileName         String?           @map("juknis_file_name")
   juknisStorageName      String?           @map("juknis_storage_name")
@@ -81,10 +83,10 @@ model Activity {
   imagePosition          String            @default("right center") @map("image_position")
   displayOrder           Int               @default(0) @map("display_order")
   location               String?
-  startsAt               DateTime          @map("starts_at") @db.Timestamptz(3)
+  startsAt               DateTime?         @map("starts_at") @db.Timestamptz(3)
   endsAt                 DateTime?         @map("ends_at") @db.Timestamptz(3)
-  registrationOpensAt    DateTime          @map("registration_opens_at") @db.Timestamptz(3)
-  registrationClosesAt   DateTime          @map("registration_closes_at") @db.Timestamptz(3)
+  registrationOpensAt    DateTime?         @map("registration_opens_at") @db.Timestamptz(3)
+  registrationClosesAt   DateTime?         @map("registration_closes_at") @db.Timestamptz(3)
   registrationMode       RegistrationMode @map("registration_mode")
   quotaMode              QuotaMode         @map("quota_mode")
   capacity               Int?

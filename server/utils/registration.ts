@@ -29,6 +29,7 @@ export const getRegistrationState = (activity: Activity, used: number, now = new
   if (activity.status === 'CANCELLED') return 'CANCELLED'
   if (activity.status === 'DRAFT') return 'DRAFT'
   if (activity.type === 'EVENT') return 'NOT_REQUIRED'
+  if (!activity.registrationOpensAt || !activity.registrationClosesAt) return 'DRAFT'
   if (activity.status === 'CLOSED' || now > activity.registrationClosesAt) return 'CLOSED'
   if (now < activity.registrationOpensAt) return 'NOT_OPEN'
   if (activity.externalRegistrationUrl) return 'OPEN'
@@ -45,6 +46,8 @@ export const publicActivityPayload = (activity: Activity & { registrationFields:
   type: activity.type,
   title: activity.title,
   organizer: activity.organizer,
+  contactPerson: activity.contactPerson,
+  contactPhone: activity.contactPhone,
   slug: activity.slug,
   description: activity.description,
   juknis: activity.juknisStorageName ? {
@@ -58,10 +61,10 @@ export const publicActivityPayload = (activity: Activity & { registrationFields:
   imagePosition: activity.imagePosition,
   displayOrder: activity.displayOrder,
   location: activity.location,
-  startsAt: activity.startsAt.toISOString(),
+  startsAt: activity.startsAt?.toISOString() ?? null,
   endsAt: activity.endsAt?.toISOString() ?? null,
-  registrationOpensAt: activity.registrationOpensAt.toISOString(),
-  registrationClosesAt: activity.registrationClosesAt.toISOString(),
+  registrationOpensAt: activity.registrationOpensAt?.toISOString() ?? null,
+  registrationClosesAt: activity.registrationClosesAt?.toISOString() ?? null,
   registrationMode: activity.registrationMode,
   quotaMode: activity.quotaMode,
   capacity: activity.capacity,

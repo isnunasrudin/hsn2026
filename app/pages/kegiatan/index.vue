@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { formatIndonesiaDateTimeRange, formatIndonesiaTimeRange, groupByIndonesiaDate } from '~/utils/date'
 
-type Activity = { id: number; type: 'LOMBA' | 'EVENT'; title: string; slug: string; description: string | null; image: string | null; location: string | null; startsAt: string; endsAt: string | null; registrationOpensAt: string; registrationClosesAt: string; registrationState: string; quotaRemaining: number | null }
+type Activity = { id: number; type: 'LOMBA' | 'EVENT'; title: string; slug: string; description: string | null; image: string | null; location: string | null; startsAt: string | null; endsAt: string | null; registrationOpensAt: string | null; registrationClosesAt: string | null; registrationState: string; quotaRemaining: number | null }
 
 const selectedType = ref<'ALL' | 'LOMBA' | 'EVENT'>('ALL')
 const { data, pending, error } = await useFetch<{ activities: Activity[] }>('/api/public/activities', { query: computed(() => selectedType.value === 'ALL' ? {} : { type: selectedType.value }) })

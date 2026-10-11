@@ -1,11 +1,33 @@
 import { createError, type H3Event, getRouterParam } from 'h3'
 import { z } from 'zod'
 import { db } from '../database/client'
-import { ActivityStatus, type Activity } from '../generated/prisma/client'
+import type { Activity } from '../generated/prisma/client'
 import { activityStatuses, activityTypes, defaultRegistrationFields, parseRegistrationFields, quotaModes, registrationFieldTypes, registrationModes, type RegistrationField } from '../database/schema'
 
 const dateValue = z.union([z.string().min(1), z.date()]).transform(value => value instanceof Date ? new Date(value.getTime()) : new Date(value)).refine(value => !Number.isNaN(value.getTime()), 'Tanggal tidak valid.')
 const nullableDateValue = dateValue.nullable()
+
+export const activitySlugFromTitle = (title: string): string => title
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-+|-+$/g, '')
+
+export const uniqueActivitySlug = async (title: string, excludeId?: number): Promise<string> => {
+  const base = activitySlugFromTitle(title) || 'kegiatan'
+  let candidate = base.slice(0, 180)
+  let suffix = 2
+
+  while (true) {
+    const existing = await db.activity.findUnique({ where: { slug: candidate }, select: { id: true } })
+    if (!existing || existing.id === excludeId) return candidate
+
+    const ending = `-${suffix}`
+    candidate = `${base.slice(0, 180 - ending.length)}${ending}`
+    suffix += 1
+  }
+}
 
 const registrationFieldSchema = z.object({
   key: z.string().trim().regex(/^[a-z0-9_]+$/),
@@ -18,19 +40,21 @@ const registrationFieldSchema = z.object({
 
 const activityFieldsSchema = z.object({
   type: z.enum(activityTypes),
-  title: z.string().trim().min(1).max(180),
+  title: z.string().trim().max(180).transform(value => value || null).nullable(),
   organizer: z.string().trim().max(120).nullable(),
-  slug: z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(180),
+  contactPerson: z.string().trim().max(120).transform(value => value || null).nullable(),
+  contactPhone: z.string().trim().max(40).transform(value => value || null).nullable(),
+  slug: z.string().trim().max(180).transform(value => value || null).nullable(),
   description: z.string().trim().max(5000).nullable(),
   image: z.string().trim().max(500).nullable(),
   imageZoom: z.number().positive().max(5),
   imagePosition: z.string().trim().min(1).max(120),
   displayOrder: z.number().int().min(0),
   location: z.string().trim().max(240).nullable(),
-  startsAt: dateValue,
+  startsAt: nullableDateValue,
   endsAt: nullableDateValue,
-  registrationOpensAt: dateValue,
-  registrationClosesAt: dateValue,
+  registrationOpensAt: nullableDateValue,
+  registrationClosesAt: nullableDateValue,
   registrationMode: z.enum(registrationModes),
   quotaMode: z.enum(quotaModes),
   capacity: z.number().int().positive().nullable(),
@@ -42,19 +66,27 @@ const activityFieldsSchema = z.object({
 })
 
 const validateActivityFields = (value: z.infer<typeof activityFieldsSchema>, context: z.RefinementCtx): void => {
-  if (value.endsAt && value.endsAt <= value.startsAt) {
+  const isPublished = value.status === 'PUBLISHED'
+  if (isPublished) {
+    if (!value.title) context.addIssue({ code: 'custom', path: ['title'], message: 'Judul wajib diisi sebelum kegiatan dipublikasikan.' })
+    if (!value.slug || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.slug)) context.addIssue({ code: 'custom', path: ['slug'], message: 'Slug wajib diisi sebelum kegiatan dipublikasikan.' })
+    if (value.type === 'LOMBA' && !value.registrationOpensAt) context.addIssue({ code: 'custom', path: ['registrationOpensAt'], message: 'Pembukaan pendaftaran wajib diisi sebelum lomba dipublikasikan.' })
+    if (value.type === 'LOMBA' && !value.registrationClosesAt) context.addIssue({ code: 'custom', path: ['registrationClosesAt'], message: 'Penutupan pendaftaran wajib diisi sebelum lomba dipublikasikan.' })
+  }
+
+  if (value.endsAt && value.startsAt && value.endsAt <= value.startsAt) {
     context.addIssue({ code: 'custom', path: ['endsAt'], message: 'Waktu selesai harus setelah waktu mulai.' })
   }
 
-  if (value.registrationClosesAt <= value.registrationOpensAt) {
+  if (value.registrationClosesAt && value.registrationOpensAt && value.registrationClosesAt <= value.registrationOpensAt) {
     context.addIssue({ code: 'custom', path: ['registrationClosesAt'], message: 'Penutupan pendaftaran harus setelah pembukaan.' })
   }
 
-  if (value.registrationMode === 'INDIVIDUAL' && (value.minTeamMembers !== null || value.maxTeamMembers !== null)) {
+  if (isPublished && value.registrationMode === 'INDIVIDUAL' && (value.minTeamMembers !== null || value.maxTeamMembers !== null)) {
     context.addIssue({ code: 'custom', path: ['registrationMode'], message: 'Batas anggota hanya boleh diisi untuk mode tim.' })
   }
 
-  if (value.registrationMode === 'TEAM' && (!value.minTeamMembers || !value.maxTeamMembers || value.maxTeamMembers < value.minTeamMembers)) {
+  if (isPublished && value.registrationMode === 'TEAM' && (!value.minTeamMembers || !value.maxTeamMembers || value.maxTeamMembers < value.minTeamMembers)) {
     context.addIssue({ code: 'custom', path: ['maxTeamMembers'], message: 'Batas anggota tim tidak valid.' })
   }
 
@@ -62,7 +94,7 @@ const validateActivityFields = (value: z.infer<typeof activityFieldsSchema>, con
   if (new Set(keys).size !== keys.length) {
     context.addIssue({ code: 'custom', path: ['registrationFields'], message: 'Key field tidak boleh duplikat.' })
   }
-  if (value.type === 'LOMBA') {
+  if (value.type === 'LOMBA' && isPublished) {
     for (const field of defaultRegistrationFields(value.registrationMode)) {
       const configured = value.registrationFields.find(candidate => candidate.key === field.key)
       if (!configured || configured.type !== field.type) {
@@ -86,7 +118,7 @@ const validateActivityFields = (value: z.infer<typeof activityFieldsSchema>, con
 }
 
 export const activityInputSchema = activityFieldsSchema
-  .transform(value => value.type === 'LOMBA' && value.registrationFields.length === 0
+  .transform(value => value.status === 'PUBLISHED' && value.type === 'LOMBA' && value.registrationFields.length === 0
     ? { ...value, registrationFields: defaultRegistrationFields(value.registrationMode) }
     : value)
   .superRefine(validateActivityFields)
@@ -121,7 +153,7 @@ export const getActivityOrThrow = async (activityId: number) => {
 
 export const activityRecord = (record: Activity) => {
   const fields = parseRegistrationFields(record.registrationFields)
-  return { ...record, registrationFields: record.type === 'LOMBA' && fields.length === 0 ? defaultRegistrationFields(record.registrationMode) : fields }
+  return { ...record, registrationFields: record.status === 'PUBLISHED' && record.type === 'LOMBA' && fields.length === 0 ? defaultRegistrationFields(record.registrationMode) : fields }
 }
 
 export const activityPayload = (activity: Activity & { registrationFields: RegistrationField[] }) => ({
@@ -132,22 +164,8 @@ export const activityPayload = (activity: Activity & { registrationFields: Regis
     size: activity.juknisSize,
     url: `/api/admin/activities/${activity.id}/juknis`
   } : null,
-  startsAt: activity.startsAt.toISOString(),
+  startsAt: activity.startsAt?.toISOString() ?? null,
   endsAt: activity.endsAt?.toISOString() ?? null,
-  registrationOpensAt: activity.registrationOpensAt.toISOString(),
-  registrationClosesAt: activity.registrationClosesAt.toISOString()
+  registrationOpensAt: activity.registrationOpensAt?.toISOString() ?? null,
+  registrationClosesAt: activity.registrationClosesAt?.toISOString() ?? null
 })
-
-export const assertStatusTransition = (current: ActivityStatus, next: ActivityStatus): void => {
-  type ActivityStatus = typeof activityStatuses[number]
-  const allowed: Record<ActivityStatus, readonly ActivityStatus[]> = {
-    DRAFT: ['DRAFT', 'PUBLISHED', 'CANCELLED'],
-    PUBLISHED: ['PUBLISHED', 'CLOSED', 'CANCELLED'],
-    CLOSED: ['CLOSED'],
-    CANCELLED: ['CANCELLED']
-  }
-
-  if (!allowed[current].includes(next)) {
-    throw createError({ statusCode: 422, statusMessage: `Transisi status ${current} ke ${next} tidak diizinkan.` })
-  }
-}

@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
       juknisSize: saved.size,
     } })
     await removeActivityJuknis(activityId, activity.juknisStorageName).catch(() => undefined)
-    return { juknis: { name: saved.fileName, mimeType: saved.mimeType, size: saved.size, url: `/api/public/activities/${activity.slug}/juknis` } }
+    return { juknis: { name: saved.fileName, mimeType: saved.mimeType, size: saved.size, url: activity.slug ? `/api/public/activities/${activity.slug}/juknis` : `/api/admin/activities/${activity.id}/juknis` } }
   } catch (error: unknown) {
     await removeActivityJuknis(activityId, saved.storageName)
     throw createError({ statusCode: 500, statusMessage: error instanceof Error ? error.message : 'Juknis gagal disimpan.' })
