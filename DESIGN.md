@@ -61,13 +61,13 @@ Landing publik membawa identitas yang sama ke suasana perayaan: logo menjadi fok
 
 ### Sorotan lomba dan pencarian kegiatan
 
-- Structure: pengantar singkat, pencarian kegiatan berdasarkan judul dan deskripsi, seluruh kegiatan terpublikasi yang belum terlewat saat kolom pencarian kosong, dan tautan ke katalog lengkap.
+- Structure: pencarian berdasarkan judul dan deskripsi, filter Semua/Kegiatan/Lomba, serta daftar kegiatan terpublikasi yang belum terlewat saat pencarian kosong.
 - Ordering: kegiatan diurutkan berdasarkan waktu mulai terdekat; jadwal kosong berada setelah kegiatan yang memiliki waktu. Daftar landing memakai timeline roadmap yang mengelompokkan kegiatan berdasarkan tanggal.
-- Activity item: tanggal dan waktu pelaksanaan, nama lomba, deskripsi, penyelenggara, lokasi, status pendaftaran, gambar bila tersedia, serta tautan detail. Permukaan gelap transparan, radius 3px, dan lapisan gambar dengan gradien mengikuti kartu agenda `/timeline`.
-- Primary action: tombol berisi aksen emas untuk membuka katalog kegiatan.
+- Activity item: tanggal dan waktu pelaksanaan, nama kegiatan, deskripsi, penyelenggara, lokasi, gambar bila tersedia, dan tautan detail kegiatan. Permukaan gelap transparan, radius 3px, dan lapisan gambar dengan gradien roadmap.
+- Filter: tombol kategori mengubah daftar di landing tanpa membuka halaman lain.
 - Spacing: tumpukan pengantar dan informasi pada kartu memakai jarak vertikal 12px; pemisah pengantar ke daftar 16px di ponsel dan 12px di desktop.
 - States: loading, error, empty, dan populated.
-- Layout: timeline responsif memakai rail tanggal dan kartu agenda yang sama dengan `/timeline` dan `/kegiatan`; tidak menampilkan data statis yang bisa berbeda dari katalog.
+- Layout: timeline responsif memakai rail tanggal dan kartu agenda roadmap; tidak menampilkan data statis yang bisa berbeda dari katalog.
 - Accessibility: heading berurutan, daftar kegiatan semantik, status pemuatan/error diumumkan, tautan memiliki nama yang menjelaskan tujuannya.
 
 ### Kegiatan hari ini
@@ -81,9 +81,9 @@ Landing publik membawa identitas yang sama ke suasana perayaan: logo menjadi fok
 
 ### Roadmap katalog kegiatan
 
-- Structure: header navigasi, judul agenda, jumlah kegiatan, filter jenis bila tersedia, rail tanggal bernomor, dan grid item per tanggal.
-- Shared surface: halaman `/timeline` dan `/kegiatan` memakai komponen serta kartu roadmap yang sama.
-- States: loading, error, empty, filtered, and populated; cards link to the activity detail route.
+- Structure: rute lama diarahkan ke landing; komponen roadmap dipakai sebagai daftar hasil filter di landing.
+- Route behavior: `/timeline` dan katalog `/kegiatan` mengarah kembali ke landing; halaman detail dan pendaftaran `/kegiatan/*` tetap tersedia.
+- States: loading, error, empty, filtered, and populated.
 - Responsive behavior: kartu dua kolom pada layar lebar dan satu kolom pada layar kecil. Di ponsel, angka penanda disembunyikan dan garis bawah tanggal tersambung ke rail vertikal agar kartu lebih lebar.
 
 ### Admin modal

@@ -33,7 +33,6 @@ const logout = async (): Promise<void> => {
               <NuxtLink class="admin-nav-link admin-link rounded-lg px-3 py-2 text-sm text-[var(--hsn-text-secondary)] transition" to="/admin">Ringkasan</NuxtLink>
               <NuxtLink class="admin-nav-link admin-link rounded-lg px-3 py-2 text-sm text-[var(--hsn-text-secondary)] transition" to="/admin/users">Pengguna</NuxtLink>
               <NuxtLink class="admin-nav-link admin-link rounded-lg px-3 py-2 text-sm text-[var(--hsn-text-secondary)] transition" to="/admin/activities">Kegiatan</NuxtLink>
-              <NuxtLink class="admin-nav-link admin-link rounded-lg px-3 py-2 text-sm text-[var(--hsn-text-secondary)] transition" to="/timeline">Timeline publik</NuxtLink>
             </nav>
           </div>
           <button class="admin-button admin-button-secondary hidden w-full lg:mt-12 lg:block" type="button" :disabled="isLoggingOut" @click="logout">

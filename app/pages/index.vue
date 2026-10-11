@@ -15,6 +15,12 @@ type Activity = {
   endsAt: string | null
   registrationState: string
 }
+type ActivityFilter = 'ALL' | 'EVENT' | 'LOMBA'
+const activityFilters: { value: ActivityFilter; label: string }[] = [
+  { value: 'ALL', label: 'Semua' },
+  { value: 'EVENT', label: 'Kegiatan' },
+  { value: 'LOMBA', label: 'Lomba' }
+]
 
 const { data, pending, error } = await useFetch<{ activities: Activity[] }>('/api/public/activities')
 const currentTime = useState('landing-current-time', () => new Date().toISOString())
@@ -22,6 +28,7 @@ let clockInterval: ReturnType<typeof setInterval> | undefined
 
 const publicActivities = computed(() => data.value?.activities ?? [])
 const activitySearch = ref('')
+const activityFilter = ref<ActivityFilter>('ALL')
 const activitiesByTime = (activities: Activity[]): Activity[] => [...activities].sort((a, b) => {
   const aStart = a.startsAt ? new Date(a.startsAt).getTime() : Number.POSITIVE_INFINITY
   const bStart = b.startsAt ? new Date(b.startsAt).getTime() : Number.POSITIVE_INFINITY
@@ -37,8 +44,12 @@ const notPassedActivities = computed(() => {
 })
 const visibleActivities = computed(() => {
   const query = activitySearch.value.trim().toLocaleLowerCase('id-ID')
-  if (!query) return notPassedActivities.value
-  return activitiesByTime(publicActivities.value.filter(activity => `${activity.title} ${activity.description ?? ''}`.toLocaleLowerCase('id-ID').includes(query)))
+  const source = query ? publicActivities.value : notPassedActivities.value
+  return activitiesByTime(source.filter((activity) => {
+    const matchesType = activityFilter.value === 'ALL' || activity.type === activityFilter.value
+    const matchesSearch = !query || `${activity.title} ${activity.description ?? ''}`.toLocaleLowerCase('id-ID').includes(query)
+    return matchesType && matchesSearch
+  }))
 })
 const todayKey = computed(() => getIndonesiaDateKey(currentTime.value))
 const todayActivities = computed(() => publicActivities.value.filter((activity) => {
@@ -123,8 +134,8 @@ useHead({
         </section>
       </div>
 
-      <section class="overview reveal delay-2 w-full text-left" aria-labelledby="overview-title">
-        <div class="overview-intro flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between pb-5">
+      <section id="activities" class="overview reveal delay-2 w-full text-left" aria-labelledby="overview-title">
+        <div class="overview-intro pb-5">
           <div class="overview-copy">
             <h2 id="overview-title" class="sr-only">Cari kegiatan Hari Santri 2026</h2>
             <div class="activity-search">
@@ -137,20 +148,25 @@ useHead({
                 aria-label="Cari kegiatan berdasarkan judul atau deskripsi">
             </div>
           </div>
-          <NuxtLink class="catalog-cta shrink-0" to="/kegiatan">
-            Jelajahi semua kegiatan <span aria-hidden="true">↗</span>
-          </NuxtLink>
+          <div class="activity-filters" role="group" aria-label="Filter jenis kegiatan">
+            <button v-for="filter in activityFilters" :key="filter.value" class="activity-filter"
+              :class="{ 'is-active': activityFilter === filter.value }" type="button"
+              :aria-pressed="activityFilter === filter.value" @click="activityFilter = filter.value">
+              {{ filter.label }}
+            </button>
+          </div>
         </div>
 
         <p v-if="pending" class="overview-state" role="status" aria-live="polite">Memuat informasi kegiatan...</p>
-        <p v-else-if="error" class="overview-state" role="alert">Informasi kegiatan belum dapat dimuat. Silakan buka
-          katalog kegiatan.</p>
-        <p v-else-if="activitySearch.trim() && visibleActivities.length === 0" class="overview-state" role="status">
-          Tidak ada kegiatan yang cocok dengan pencarian.</p>
+        <p v-else-if="error" class="overview-state" role="alert">Informasi kegiatan belum dapat dimuat.</p>
+        <p v-else-if="(activitySearch.trim() || activityFilter !== 'ALL') && visibleActivities.length === 0"
+          class="overview-state" role="status">
+          Tidak ada kegiatan yang sesuai dengan pencarian dan filter.</p>
         <p v-else-if="!activitySearch.trim() && visibleActivities.length === 0" class="overview-state">Belum ada
-          kegiatan mendatang yang dijadwalkan. Pantau katalog untuk pembaruan.</p>
-        <p v-if="!pending && !error && activitySearch.trim() && visibleActivities.length" class="search-results"
-          role="status" aria-live="polite">{{ visibleActivities.length }} kegiatan ditemukan.</p>
+          kegiatan mendatang yang dijadwalkan.</p>
+        <p v-if="!pending && !error && (activitySearch.trim() || activityFilter !== 'ALL') && visibleActivities.length"
+          class="search-results" role="status" aria-live="polite">{{ visibleActivities.length }} kegiatan ditampilkan.
+        </p>
         <ActivityRoadmap v-if="!pending && !error && visibleActivities.length" :activities="visibleActivities"
           title-tag="h3" />
       </section>
@@ -440,6 +456,10 @@ useHead({
 }
 
 .overview-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: end;
+  gap: 12px;
   margin-bottom: 16px;
 }
 
@@ -447,6 +467,7 @@ useHead({
   display: grid;
   gap: 12px;
   width: 100%;
+  min-width: 0;
 }
 
 .overview-description {
@@ -455,7 +476,7 @@ useHead({
 
 .activity-search {
   display: flex;
-  width: min(100%, 640px);
+  width: 100%;
   min-height: 48px;
   align-items: center;
   gap: 12px;
@@ -515,36 +536,38 @@ useHead({
   max-height: 30svh;
 }
 
-.catalog-cta {
-  display: inline-flex;
+.activity-filters {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  align-self: flex-start;
+  align-self: flex-end;
+  justify-self: end;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.activity-filter {
   min-height: 44px;
-  width: fit-content;
-  max-width: 100%;
-  padding: 0 16px;
-  border: 1px solid transparent;
+  padding: 0 15px;
+  border: 1px solid var(--hsn-border-subtle);
   border-radius: 999px;
-  background: var(--hsn-accent-primary);
-  color: var(--hsn-surface-primary);
+  background: rgba(10, 41, 43, .52);
+  color: var(--hsn-text-secondary);
+  font: inherit;
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: .14em;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: background-color .2s ease, border-color .2s ease, color .2s ease;
+  font-weight: 600;
+  letter-spacing: .08em;
+  cursor: pointer;
+  transition: border-color .2s ease, background-color .2s ease, color .2s ease;
 }
 
-.catalog-cta:hover,
-.catalog-cta:focus-visible {
-  background: var(--hsn-accent-soft);
-  color: var(--hsn-surface-primary);
+.activity-filter:hover,
+.activity-filter.is-active {
+  border-color: rgba(233, 165, 30, .7);
+  background: rgba(233, 165, 30, .14);
+  color: var(--hsn-accent-soft);
 }
 
-.catalog-cta:focus-visible,
-.activity-link:focus-visible {
+.activity-filter:focus-visible {
   outline: 2px solid var(--hsn-accent-soft);
   outline-offset: 4px;
 }
@@ -834,6 +857,7 @@ useHead({
 
 @media (min-width: 640px) {
   .overview-intro {
+    grid-template-columns: minmax(0, 1fr) auto;
     margin-bottom: 12px;
   }
 
@@ -845,9 +869,6 @@ useHead({
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .catalog-cta {
-    align-self: flex-end;
-  }
 }
 
 @media (min-width: 1100px) {
