@@ -2,7 +2,17 @@
 import type Cropper from 'cropperjs'
 import 'cropperjs/dist/cropper.css'
 
-defineProps<{ imageUrl: string | null }>()
+const props = withDefaults(defineProps<{
+  imageUrl: string | null
+  assetName?: string
+  aspectRatio?: number
+  fillColor?: string
+}>(), {
+  assetName: 'Gambar kegiatan',
+  aspectRatio: 16 / 9,
+  fillColor: '#071c1e'
+})
+const ratioLabel = computed(() => props.aspectRatio === 1 ? '1:1' : '16:9')
 const emit = defineEmits<{
   cropped: [image: Blob]
   clear: []
@@ -42,7 +52,7 @@ const initializeCropper = async (event: Event): Promise<void> => {
     const { default: CropperConstructor } = await import('cropperjs')
     if (image.src !== source.value) return
     cropper.value = new CropperConstructor(image, {
-      aspectRatio: 16 / 9,
+      aspectRatio: props.aspectRatio,
       viewMode: 1,
       dragMode: 'move',
       autoCropArea: 0.9,
@@ -87,10 +97,10 @@ const selectImage = (event: Event): void => {
 const applyCrop = (): void => {
   if (!isCropperReady.value || !cropper.value) return
   const canvas = cropper.value.getCroppedCanvas({
-    maxWidth: 1600,
-    maxHeight: 900,
+    maxWidth: props.aspectRatio === 1 ? 1000 : 1600,
+    maxHeight: props.aspectRatio === 1 ? 1000 : 900,
     imageSmoothingQuality: 'high',
-    fillColor: '#071c1e'
+    fillColor: props.fillColor
   })
   if (!canvas) {
     errorMessage.value = 'Gambar belum siap dipotong. Silakan coba lagi.'
@@ -140,26 +150,26 @@ onUnmounted(() => {
 <template>
   <section class="grid gap-3 rounded-lg border border-[var(--hsn-border-subtle)] p-4 sm:col-span-2">
     <div>
-      <p class="text-sm font-medium text-[var(--hsn-text-secondary)]">Gambar kegiatan</p>
-      <p class="mt-1 text-xs leading-5 text-[var(--hsn-text-muted)]">Pilih JPG, PNG, atau WebP maksimal 15 MB. Area crop otomatis dikunci ke rasio 16:9.</p>
+      <p class="text-sm font-medium text-[var(--hsn-text-secondary)]">{{ props.assetName }}</p>
+      <p class="mt-1 text-xs leading-5 text-[var(--hsn-text-muted)]">Pilih JPG, PNG, atau WebP maksimal 15 MB. Area crop otomatis dikunci ke rasio {{ ratioLabel }}.</p>
     </div>
     <div v-if="isCropping && source" class="grid gap-3">
       <div class="h-80 overflow-hidden rounded-md bg-[var(--hsn-surface-primary)]">
-        <img :src="source" class="block max-w-full" alt="Pilih area gambar kegiatan" @load="initializeCropper">
+        <img :src="source" class="block max-w-full" :alt="`Pilih area ${props.assetName.toLowerCase()}`" @load="initializeCropper">
       </div>
       <div class="flex flex-wrap gap-2">
         <button class="admin-button admin-button-primary" type="button" :disabled="!isCropperReady" @click="applyCrop">{{ isCropperReady ? 'Gunakan hasil crop' : 'Menyiapkan cropper...' }}</button>
         <button class="admin-button admin-button-secondary" type="button" @click="cancelCrop">Batal</button>
       </div>
     </div>
-    <img v-else-if="croppedPreview || imageUrl" class="max-h-64 w-full rounded-md bg-[var(--hsn-surface-primary)] object-contain" :src="croppedPreview || imageUrl || ''" alt="Pratinjau gambar kegiatan">
+    <img v-else-if="croppedPreview || imageUrl" class="max-h-64 w-full rounded-md bg-[var(--hsn-surface-primary)] object-contain" :src="croppedPreview || imageUrl || ''" :alt="`Pratinjau ${props.assetName.toLowerCase()}`">
     <p v-if="errorMessage" class="text-sm text-[var(--hsn-status-error)]" role="alert">{{ errorMessage }}</p>
     <div v-if="!isCropping" class="flex flex-wrap gap-2">
       <label class="admin-button admin-button-secondary inline-flex cursor-pointer items-center">
-        {{ imageUrl || croppedPreview ? 'Ganti gambar' : 'Pilih gambar' }}
+        {{ imageUrl || croppedPreview ? 'Ganti' : 'Pilih' }} {{ props.assetName.toLowerCase() }}
         <input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" @change="selectImage">
       </label>
-      <button v-if="imageUrl || croppedPreview" class="admin-button admin-button-danger" type="button" @click="clearImage">Hapus gambar</button>
+      <button v-if="imageUrl || croppedPreview" class="admin-button admin-button-danger" type="button" @click="clearImage">Hapus {{ props.assetName.toLowerCase() }}</button>
       <p v-if="croppedPreview" class="self-center text-xs text-[var(--hsn-status-success)]" role="status">Hasil crop siap disimpan bersama kegiatan.</p>
     </div>
   </section>

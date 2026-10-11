@@ -1,6 +1,6 @@
 <script setup lang="ts">
 type Field = { key: string; label: string; type: string; required: boolean; options?: string[]; accept?: string }
-type Activity = { title: string; registrationMode: 'INDIVIDUAL' | 'TEAM'; registrationState: string; registrationFields: Field[]; minTeamMembers: number | null; maxTeamMembers: number | null }
+type Activity = { title: string; logo: string | null; registrationMode: 'INDIVIDUAL' | 'TEAM'; registrationState: string; registrationFields: Field[]; minTeamMembers: number | null; maxTeamMembers: number | null }
 const route = useRoute()
 const { data, error: loadError } = await useFetch<{ activity: Activity }>(() => `/api/public/activities/${route.params.slug}`)
 const activity = computed(() => data.value?.activity)
@@ -31,7 +31,7 @@ const submit = async (): Promise<void> => { errorMessage.value = ''; isSubmittin
       <NuxtLink class="admin-link text-sm text-[var(--hsn-text-muted)]" :to="`/kegiatan/${route.params.slug}`">← Detail kegiatan</NuxtLink>
       <section class="admin-panel mt-8 p-6 sm:p-8">
         <p class="text-[11px] font-semibold uppercase tracking-[.18em] text-[var(--hsn-accent-soft)]">Formulir pendaftaran</p>
-        <h1 class="mt-3 text-3xl font-semibold tracking-[-.035em] text-[var(--hsn-text-primary)]">{{ activity?.title }}</h1>
+        <div class="mt-3 flex items-center gap-4"><img v-if="activity?.logo" class="size-16 shrink-0 rounded-md bg-white p-1.5 object-contain" :src="activity.logo" :alt="`Logo ${activity.title}`" width="64" height="64"><h1 class="text-3xl font-semibold tracking-[-.035em] text-[var(--hsn-text-primary)]">{{ activity?.title }}</h1></div>
         <p v-if="loadError" class="admin-alert-error mt-6 rounded-lg px-4 py-3 text-sm">Kegiatan tidak ditemukan.</p>
         <p v-else-if="activity && activity.registrationState !== 'OPEN' && stateMessage(activity.registrationState)" class="admin-alert-error mt-6 rounded-lg px-4 py-3 text-sm">{{ stateMessage(activity.registrationState) }}</p>
         <form v-else class="mt-8 grid gap-5" @submit.prevent="submit">

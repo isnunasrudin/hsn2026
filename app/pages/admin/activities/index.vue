@@ -26,6 +26,7 @@ type ActivityRecord = {
   slug: string | null
   description: string | null
   image: string | null
+  logo: string | null
   displayOrder: number
   location: string | null
   startsAt: string | null
@@ -63,7 +64,9 @@ const isDeleting = ref(false)
 const selectedOperatorIds = ref<number[]>([])
 const isSlugManuallyEdited = ref(false)
 const pendingActivityImage = ref<Blob | null>(null)
+const pendingActivityLogo = ref<Blob | null>(null)
 const imageEditorKey = ref(0)
+const logoEditorKey = ref(0)
 const filters = reactive({ q: '', type: 'ALL' as ActivityType | 'ALL', status: 'ALL' as ActivityStatus | 'ALL' })
 
 const form = reactive({
@@ -75,6 +78,7 @@ const form = reactive({
   slug: '',
   description: '',
   image: '',
+  logo: '',
   displayOrder: 0,
   location: '',
   startsAt: '',
@@ -191,7 +195,9 @@ const resetForm = (): void => {
   inactiveSystemFields.clear()
   isSlugManuallyEdited.value = false
   pendingActivityImage.value = null
+  pendingActivityLogo.value = null
   imageEditorKey.value += 1
+  logoEditorKey.value += 1
   form.type = 'EVENT'
   form.title = ''
   form.organizer = ''
@@ -200,6 +206,7 @@ const resetForm = (): void => {
   form.slug = ''
   form.description = ''
   form.image = ''
+  form.logo = ''
   form.displayOrder = 0
   form.location = ''
   form.startsAt = ''
@@ -260,6 +267,13 @@ const uploadActivityImage = async (activityId: number): Promise<void> => {
   await $fetch(`/api/admin/activities/${activityId}/image`, { method: 'POST', body })
 }
 
+const uploadActivityLogo = async (activityId: number): Promise<void> => {
+  if (!pendingActivityLogo.value) return
+  const body = new FormData()
+  body.append('file', pendingActivityLogo.value, 'logo.jpg')
+  await $fetch(`/api/admin/activities/${activityId}/logo`, { method: 'POST', body })
+}
+
 const currentImageUrl = computed(() => {
   const activity = selectedActivity.value
   if (!activity || !form.image) return null
@@ -268,9 +282,29 @@ const currentImageUrl = computed(() => {
     : form.image
 })
 
+const currentLogoUrl = computed(() => {
+  const activity = selectedActivity.value
+  if (!activity || !form.logo) return null
+  return form.logo.startsWith('storage:')
+    ? `/api/admin/activities/${activity.id}/logo`
+    : form.logo
+})
+
+const activityLogoUrl = (activity: ActivityRecord): string | null => {
+  if (!activity.logo) return null
+  return activity.logo.startsWith('storage:')
+    ? `/api/admin/activities/${activity.id}/logo`
+    : activity.logo
+}
+
 const clearActivityImage = (): void => {
   form.image = ''
   pendingActivityImage.value = null
+}
+
+const clearActivityLogo = (): void => {
+  form.logo = ''
+  pendingActivityLogo.value = null
 }
 
 const deleteJuknis = async (): Promise<void> => {
@@ -295,6 +329,7 @@ const payload = () => ({
   slug: form.slug.trim() || null,
   description: form.description || null,
   image: form.image || null,
+  logo: form.logo || null,
   displayOrder: Number(form.displayOrder),
   location: form.location || null,
   startsAt: form.startsAt ? toIso(form.startsAt) : null,
@@ -353,6 +388,7 @@ const createActivity = async (): Promise<void> => {
     const response = await $fetch<{ activity: ActivityRecord }>('/api/admin/activities', { method: 'POST', body: payload() })
     await uploadJuknis(response.activity.id)
     await uploadActivityImage(response.activity.id)
+    await uploadActivityLogo(response.activity.id)
     feedback.value = 'Kegiatan berhasil dibuat.'
     resetForm()
     await reload()
@@ -367,7 +403,9 @@ const editActivity = async (activity: ActivityRecord): Promise<void> => {
   clearMessages()
   inactiveSystemFields.clear()
   pendingActivityImage.value = null
+  pendingActivityLogo.value = null
   imageEditorKey.value += 1
+  logoEditorKey.value += 1
   editingId.value = activity.id
   isCreateOpen.value = false
   form.type = activity.type
@@ -379,6 +417,7 @@ const editActivity = async (activity: ActivityRecord): Promise<void> => {
   isSlugManuallyEdited.value = false
   form.description = activity.description ?? ''
   form.image = activity.image ?? ''
+  form.logo = activity.logo ?? ''
   form.displayOrder = activity.displayOrder
   form.location = activity.location ?? ''
   form.startsAt = toLocalInput(activity.startsAt)
@@ -419,6 +458,7 @@ const updateActivity = async (): Promise<void> => {
     await $fetch(`/api/admin/activities/${selectedActivity.value.id}`, { method: 'PATCH', body: payload() })
     await uploadJuknis(selectedActivity.value.id)
     await uploadActivityImage(selectedActivity.value.id)
+    await uploadActivityLogo(selectedActivity.value.id)
     if (user.value?.role === 'SUPER_ADMIN') {
       await $fetch(`/api/admin/activities/${selectedActivity.value.id}/operators`, { method: 'PUT', body: { userIds: selectedOperatorIds.value } })
     }
@@ -459,11 +499,12 @@ const updateActivity = async (): Promise<void> => {
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Urutan tampil<input v-model="form.displayOrder" class="admin-input" min="0" type="number"></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)] sm:col-span-2">Deskripsi<textarea v-model="form.description" class="admin-input min-h-24" rows="3"></textarea></label>
       <AdminActivityImageCropper :key="imageEditorKey" :image-url="currentImageUrl" @cropped="pendingActivityImage = $event" @clear="clearActivityImage" />
+      <AdminActivityImageCropper :key="logoEditorKey" :image-url="currentLogoUrl" asset-name="Logo kegiatan" :aspect-ratio="1" fill-color="#ffffff" @cropped="pendingActivityLogo = $event" @clear="clearActivityLogo" />
       <div class="grid gap-3 rounded-lg border border-[var(--hsn-border-subtle)] p-4 sm:col-span-2"><div><p class="text-sm font-medium text-[var(--hsn-text-secondary)]">Juknis kegiatan</p><p class="mt-1 text-xs leading-5 text-[var(--hsn-text-muted)]">PDF, DOC, atau DOCX maksimal 10 MB. File baru akan menggantikan juknis lama setelah disimpan.</p></div><div v-if="selectedActivity?.juknis" class="flex flex-wrap items-center gap-3 rounded-lg bg-[var(--hsn-surface-secondary)] px-3 py-2 text-sm"><a class="admin-link truncate" :href="selectedActivity.juknis.url" target="_blank" rel="noopener">{{ selectedActivity.juknis.name }}</a><button class="admin-button admin-button-danger px-3 py-2 text-xs" type="button" @click="deleteJuknis">Hapus juknis</button></div><input class="admin-input file:mr-3 file:rounded-md file:border-0 file:bg-[var(--hsn-accent-primary)] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-[#071c1e]" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" @change="selectJuknis"></div>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Mulai kegiatan (opsional)<input v-model="form.startsAt" class="admin-input" type="datetime-local" @input="syncEndOfDay($event, 'endsAt')"></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Selesai kegiatan<input v-model="form.endsAt" class="admin-input" type="datetime-local"></label>
-      <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Pendaftaran dibuka<input v-model="form.registrationOpensAt" class="admin-input" :required="form.status === 'PUBLISHED'" type="datetime-local" @input="syncEndOfDay($event, 'registrationClosesAt')"></label>
-      <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Pendaftaran ditutup<input v-model="form.registrationClosesAt" class="admin-input" :required="form.status === 'PUBLISHED'" type="datetime-local"></label>
+      <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Pendaftaran dibuka<input v-model="form.registrationOpensAt" class="admin-input" type="datetime-local" @input="syncEndOfDay($event, 'registrationClosesAt')"></label>
+      <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Pendaftaran ditutup<input v-model="form.registrationClosesAt" class="admin-input" type="datetime-local"></label>
       <div v-if="isRegistrationActivity" class="grid gap-3 sm:col-span-2">
         <label class="flex items-center gap-3 text-sm text-[var(--hsn-text-secondary)]"><input v-model="form.useExternalRegistration" class="size-4 accent-[var(--hsn-accent-primary)]" type="checkbox"><span>Gunakan tautan pendaftaran eksternal</span></label>
         <p class="text-xs leading-5 text-[var(--hsn-text-muted)]">Aktifkan untuk Google Forms atau situs pendaftaran lain. Jika dimatikan, peserta memakai formulir internal.</p>
@@ -510,7 +551,7 @@ const updateActivity = async (): Promise<void> => {
             <template v-for="group in filteredActivityGroups" :key="group.key">
               <tr><td colspan="5" class="bg-[var(--hsn-surface-secondary)] font-semibold text-[var(--hsn-text-primary)]">{{ group.date || 'Tanpa tanggal' }}</td></tr>
               <tr v-for="activity in group.items" :key="activity.id">
-                <td><p class="font-medium text-[var(--hsn-text-primary)]">{{ activity.title || 'Draf belum berjudul' }}</p><p class="mt-1 text-sm text-[var(--hsn-text-muted)]">{{ activity.type }}<span v-if="activity.slug"> · /{{ activity.slug }}</span></p></td>
+                <td><div class="flex items-center gap-3"><img v-if="activityLogoUrl(activity)" class="size-12 shrink-0 rounded-md bg-white object-contain p-1" :src="activityLogoUrl(activity) || ''" :alt="`Logo ${activity.title || 'kegiatan'}`" width="48" height="48" loading="lazy"><div class="min-w-0"><p class="font-medium text-[var(--hsn-text-primary)]">{{ activity.title || 'Draf belum berjudul' }}</p><p class="mt-1 text-sm text-[var(--hsn-text-muted)]">{{ activity.type }}<span v-if="activity.slug"> · /{{ activity.slug }}</span></p></div></div></td>
                 <td class="text-sm text-[var(--hsn-text-secondary)]">{{ activity.startsAt ? formatIndonesiaTimeRange(activity.startsAt, activity.endsAt) : '' }}</td>
                 <td class="text-sm text-[var(--hsn-text-secondary)]"><span v-if="activity.type === 'LOMBA' && (activity.registrationOpensAt || activity.registrationClosesAt)">{{ formatIndonesiaDateRange(activity.registrationOpensAt, activity.registrationClosesAt) }}</span></td>
                 <td><span class="admin-badge-accent rounded-full px-2.5 py-1 text-xs font-semibold">{{ activity.status }}</span></td>

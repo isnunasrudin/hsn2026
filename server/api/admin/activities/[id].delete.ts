@@ -23,5 +23,6 @@ export default defineEventHandler(async (event) => {
   await Promise.all(result.registrationRecords.map(registration => removeRegistrationUpload(registration.code)))
   await removeActivityJuknis(activityId, activity.juknisStorageName)
   await removeActivityImage(activityId, activity.image)
+  await removeActivityImage(activityId, activity.logo)
   return { id: result.deleted.id }
 })

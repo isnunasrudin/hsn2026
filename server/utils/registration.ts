@@ -30,9 +30,9 @@ export const getRegistrationState = (activity: Activity, used: number, now = new
   if (activity.status === 'CANCELLED') return 'CANCELLED'
   if (activity.status === 'DRAFT') return 'DRAFT'
   if (activity.type === 'EVENT') return 'NOT_REQUIRED'
-  if (!activity.registrationOpensAt || !activity.registrationClosesAt) return 'DRAFT'
-  if (activity.status === 'CLOSED' || now > activity.registrationClosesAt) return 'CLOSED'
-  if (now < activity.registrationOpensAt) return 'NOT_OPEN'
+  if (activity.status === 'CLOSED') return 'CLOSED'
+  if (activity.registrationOpensAt && now < activity.registrationOpensAt) return 'NOT_OPEN'
+  if (activity.registrationClosesAt && now > activity.registrationClosesAt) return 'CLOSED'
   if (activity.externalRegistrationUrl) return 'OPEN'
   if (activity.capacity !== null && used >= activity.capacity) return 'FULL'
   return 'OPEN'
@@ -58,6 +58,7 @@ export const publicActivityPayload = (activity: Activity & { registrationFields:
     url: `/api/public/activities/${activity.slug}/juknis`
   } : null,
   image: activity.image?.startsWith(ACTIVITY_IMAGE_PREFIX) ? `/api/public/activities/${activity.slug}/image` : activity.image,
+  logo: activity.logo?.startsWith(ACTIVITY_IMAGE_PREFIX) ? `/api/public/activities/${activity.slug}/logo` : activity.logo,
   displayOrder: activity.displayOrder,
   location: activity.location,
   startsAt: activity.startsAt?.toISOString() ?? null,

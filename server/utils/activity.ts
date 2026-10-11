@@ -47,6 +47,7 @@ const activityFieldsSchema = z.object({
   slug: z.string().trim().max(180).transform(value => value || null).nullable(),
   description: z.string().trim().max(5000).nullable(),
   image: z.string().trim().max(500).nullable(),
+  logo: z.string().trim().max(500).nullable().default(null),
   displayOrder: z.number().int().min(0),
   location: z.string().trim().max(240).nullable(),
   startsAt: nullableDateValue,
@@ -68,8 +69,6 @@ const validateActivityFields = (value: z.infer<typeof activityFieldsSchema>, con
   if (isPublished) {
     if (!value.title) context.addIssue({ code: 'custom', path: ['title'], message: 'Judul wajib diisi sebelum kegiatan dipublikasikan.' })
     if (!value.slug || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.slug)) context.addIssue({ code: 'custom', path: ['slug'], message: 'Slug wajib diisi sebelum kegiatan dipublikasikan.' })
-    if (value.type === 'LOMBA' && !value.registrationOpensAt) context.addIssue({ code: 'custom', path: ['registrationOpensAt'], message: 'Pembukaan pendaftaran wajib diisi sebelum lomba dipublikasikan.' })
-    if (value.type === 'LOMBA' && !value.registrationClosesAt) context.addIssue({ code: 'custom', path: ['registrationClosesAt'], message: 'Penutupan pendaftaran wajib diisi sebelum lomba dipublikasikan.' })
   }
 
   if (value.endsAt && value.startsAt && value.endsAt <= value.startsAt) {

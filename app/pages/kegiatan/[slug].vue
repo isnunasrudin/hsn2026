@@ -2,7 +2,7 @@
 import { formatIndonesiaDateRange, formatIndonesiaDateTimeRange } from '~/utils/date'
 
 type Field = { key: string; label: string; type: string; required: boolean; options?: string[] }
-type Activity = { title: string; type: string; description: string | null; image: string | null; location: string | null; contactPerson: string | null; contactPhone: string | null; startsAt: string | null; endsAt: string | null; registrationOpensAt: string | null; registrationClosesAt: string | null; registrationMode: string; capacity: number | null; quotaRemaining: number | null; registrationState: string; registrationFields: Field[]; externalRegistrationUrl: string | null; minTeamMembers: number | null; maxTeamMembers: number | null; juknis: { name: string | null; mimeType: string | null; size: number | null; url: string } | null }
+type Activity = { title: string; type: string; description: string | null; image: string | null; logo: string | null; location: string | null; contactPerson: string | null; contactPhone: string | null; startsAt: string | null; endsAt: string | null; registrationOpensAt: string | null; registrationClosesAt: string | null; registrationMode: string; capacity: number | null; quotaRemaining: number | null; registrationState: string; registrationFields: Field[]; externalRegistrationUrl: string | null; minTeamMembers: number | null; maxTeamMembers: number | null; juknis: { name: string | null; mimeType: string | null; size: number | null; url: string } | null }
 
 const route = useRoute()
 const { data, pending, error } = await useFetch<{ activity: Activity }>(() => `/api/public/activities/${route.params.slug}`)
@@ -24,7 +24,7 @@ const whatsappUrl = (phone: string): string => `https://wa.me/${phone.replace(/\
       <article v-else class="mt-8 grid gap-6">
         <div v-if="activity.image" class="admin-panel overflow-hidden"><img class="max-h-[420px] w-full object-cover" :src="activity.image" :alt="activity.title" width="1280" height="720"></div>
         <section class="admin-panel p-6 sm:p-8">
-          <div class="flex flex-wrap items-center gap-3"><span class="admin-badge-accent rounded-full px-2.5 py-1 text-xs font-semibold">{{ activity.type }}</span></div>
+          <div class="flex flex-wrap items-center gap-3"><img v-if="activity.logo" class="size-16 shrink-0 rounded-md bg-white p-1.5 object-contain" :src="activity.logo" :alt="`Logo ${activity.title}`" width="64" height="64"><span class="admin-badge-accent rounded-full px-2.5 py-1 text-xs font-semibold">{{ activity.type }}</span></div>
           <h1 class="mt-5 text-4xl font-semibold tracking-[-.04em] text-[var(--hsn-text-primary)]">{{ activity.title }}</h1>
           <p v-if="activity.description" class="mt-4 whitespace-pre-line text-base leading-7 text-[var(--hsn-text-secondary)]">{{ activity.description }}</p>
           <dl class="mt-8 grid gap-4 border-t border-[var(--hsn-border-subtle)] pt-6 sm:grid-cols-2">

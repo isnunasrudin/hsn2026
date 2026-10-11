@@ -36,6 +36,7 @@ export default defineEventHandler(async (event) => {
 
   const activity = await db.activity.update({ where: { id: activityId }, data: { ...merged.data, registrationFields: merged.data.registrationFields as Prisma.InputJsonValue } })
   if (current.image !== activity.image) await removeActivityImage(activityId, current.image)
+  if (current.logo !== activity.logo) await removeActivityImage(activityId, current.logo)
 
   return { activity: activityPayload({ ...activity, registrationFields: merged.data.registrationFields }) }
 })

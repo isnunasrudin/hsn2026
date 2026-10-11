@@ -100,6 +100,12 @@ Landing publik membawa identitas yang sama ke suasana perayaan: logo menjadi fok
 - Interaction: drag image within the crop area; apply produces a JPEG capped at 1600 × 900 for the public activity surfaces.
 - Accessibility: native file input remains keyboard reachable through its visible label; crop errors use `role="alert"` and saved-preview feedback uses `role="status"`.
 
+### Activity logo
+
+- Structure: each activity has an optional square logo, separate from its landscape cover image.
+- Placement: thumbnail in the admin activity list; logo beside the activity type/title on the public detail and registration pages.
+- Editing: use the shared cropper at a 1:1 ratio; removing the logo clears only the logo asset.
+
 ## 6. Motion & Interaction
 
 - Transisi standar 180ms ease-out.

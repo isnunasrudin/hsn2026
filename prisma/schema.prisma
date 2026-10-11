@@ -79,6 +79,7 @@ model Activity {
   juknisMimeType         String?           @map("juknis_mime_type")
   juknisSize             Int?              @map("juknis_size")
   image                  String?
+  logo                   String?
   displayOrder           Int               @default(0) @map("display_order")
   location               String?
   startsAt               DateTime?         @map("starts_at") @db.Timestamptz(3)
