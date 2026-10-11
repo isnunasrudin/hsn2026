@@ -16,9 +16,10 @@
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.1",
-    "@tailwindcss/vite": "^4.3.3",
     "@prisma/adapter-pg": "^7.0.0",
     "@prisma/client": "^7.0.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "cropperjs": "^1.7.0",
     "nuxt": "^4.5.2",
     "nuxt-auth-utils": "^0.5.30",
     "tailwindcss": "^4.3.3",

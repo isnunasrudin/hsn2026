@@ -26,8 +26,6 @@ type ActivityRecord = {
   slug: string | null
   description: string | null
   image: string | null
-  imageZoom: number
-  imagePosition: string
   displayOrder: number
   location: string | null
   startsAt: string | null
@@ -64,6 +62,8 @@ const deleteTitle = ref('')
 const isDeleting = ref(false)
 const selectedOperatorIds = ref<number[]>([])
 const isSlugManuallyEdited = ref(false)
+const pendingActivityImage = ref<Blob | null>(null)
+const imageEditorKey = ref(0)
 const filters = reactive({ q: '', type: 'ALL' as ActivityType | 'ALL', status: 'ALL' as ActivityStatus | 'ALL' })
 
 const form = reactive({
@@ -75,8 +75,6 @@ const form = reactive({
   slug: '',
   description: '',
   image: '',
-  imageZoom: 1,
-  imagePosition: 'right center',
   displayOrder: 0,
   location: '',
   startsAt: '',
@@ -191,6 +189,8 @@ const eventRegistrationWindow = (): { opensAt: string | null; closesAt: string |
 const resetForm = (): void => {
   inactiveSystemFields.clear()
   isSlugManuallyEdited.value = false
+  pendingActivityImage.value = null
+  imageEditorKey.value += 1
   form.type = 'EVENT'
   form.title = ''
   form.organizer = ''
@@ -199,8 +199,6 @@ const resetForm = (): void => {
   form.slug = ''
   form.description = ''
   form.image = ''
-  form.imageZoom = 1
-  form.imagePosition = 'right center'
   form.displayOrder = 0
   form.location = ''
   form.startsAt = ''
@@ -254,6 +252,26 @@ const uploadJuknis = async (activityId: number): Promise<void> => {
   await $fetch(`/api/admin/activities/${activityId}/juknis`, { method: 'POST', body })
 }
 
+const uploadActivityImage = async (activityId: number): Promise<void> => {
+  if (!pendingActivityImage.value) return
+  const body = new FormData()
+  body.append('file', pendingActivityImage.value, 'kegiatan.jpg')
+  await $fetch(`/api/admin/activities/${activityId}/image`, { method: 'POST', body })
+}
+
+const currentImageUrl = computed(() => {
+  const activity = selectedActivity.value
+  if (!activity || !form.image) return null
+  return form.image.startsWith('storage:')
+    ? `/api/admin/activities/${activity.id}/image`
+    : form.image
+})
+
+const clearActivityImage = (): void => {
+  form.image = ''
+  pendingActivityImage.value = null
+}
+
 const deleteJuknis = async (): Promise<void> => {
   if (!selectedActivity.value?.juknis) return
   clearMessages()
@@ -276,8 +294,6 @@ const payload = () => ({
   slug: form.slug.trim() || null,
   description: form.description || null,
   image: form.image || null,
-  imageZoom: Number(form.imageZoom) || 1,
-  imagePosition: form.imagePosition.trim() || 'right center',
   displayOrder: Number(form.displayOrder),
   location: form.location || null,
   startsAt: form.startsAt ? toIso(form.startsAt) : null,
@@ -335,6 +351,7 @@ const createActivity = async (): Promise<void> => {
   try {
     const response = await $fetch<{ activity: ActivityRecord }>('/api/admin/activities', { method: 'POST', body: payload() })
     await uploadJuknis(response.activity.id)
+    await uploadActivityImage(response.activity.id)
     feedback.value = 'Kegiatan berhasil dibuat.'
     resetForm()
     await reload()
@@ -348,6 +365,8 @@ const createActivity = async (): Promise<void> => {
 const editActivity = async (activity: ActivityRecord): Promise<void> => {
   clearMessages()
   inactiveSystemFields.clear()
+  pendingActivityImage.value = null
+  imageEditorKey.value += 1
   editingId.value = activity.id
   isCreateOpen.value = false
   form.type = activity.type
@@ -359,8 +378,6 @@ const editActivity = async (activity: ActivityRecord): Promise<void> => {
   isSlugManuallyEdited.value = false
   form.description = activity.description ?? ''
   form.image = activity.image ?? ''
-  form.imageZoom = activity.imageZoom
-  form.imagePosition = activity.imagePosition
   form.displayOrder = activity.displayOrder
   form.location = activity.location ?? ''
   form.startsAt = toLocalInput(activity.startsAt)
@@ -400,6 +417,7 @@ const updateActivity = async (): Promise<void> => {
   try {
     await $fetch(`/api/admin/activities/${selectedActivity.value.id}`, { method: 'PATCH', body: payload() })
     await uploadJuknis(selectedActivity.value.id)
+    await uploadActivityImage(selectedActivity.value.id)
     if (user.value?.role === 'SUPER_ADMIN') {
       await $fetch(`/api/admin/activities/${selectedActivity.value.id}/operators`, { method: 'PUT', body: { userIds: selectedOperatorIds.value } })
     }
@@ -437,11 +455,9 @@ const updateActivity = async (): Promise<void> => {
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Nomor WhatsApp CP<input v-model="form.contactPhone" class="admin-input" type="tel" placeholder="08xxxxxxxxxx"></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Slug<input v-model="form.slug" class="admin-input" :required="form.status === 'PUBLISHED'" type="text" placeholder="otomatis-dari-judul" @input="isSlugManuallyEdited = true"></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Lokasi<input v-model="form.location" class="admin-input" type="text" placeholder="Gedung PCNU Trenggalek"></label>
-      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)] sm:col-span-2">Path gambar publik<input v-model="form.image" class="admin-input" type="text" placeholder="/images/kegiatan.webp"></label>
-      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Zoom gambar<input v-model="form.imageZoom" class="admin-input" max="5" min="0.1" step="0.1" type="number"></label>
-      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Posisi gambar<input v-model="form.imagePosition" class="admin-input" type="text" placeholder="right center"></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Urutan tampil<input v-model="form.displayOrder" class="admin-input" min="0" type="number"></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)] sm:col-span-2">Deskripsi<textarea v-model="form.description" class="admin-input min-h-24" rows="3"></textarea></label>
+      <AdminActivityImageCropper :key="imageEditorKey" :image-url="currentImageUrl" @cropped="pendingActivityImage = $event" @clear="clearActivityImage" />
       <div class="grid gap-3 rounded-lg border border-[var(--hsn-border-subtle)] p-4 sm:col-span-2"><div><p class="text-sm font-medium text-[var(--hsn-text-secondary)]">Juknis kegiatan</p><p class="mt-1 text-xs leading-5 text-[var(--hsn-text-muted)]">PDF, DOC, atau DOCX maksimal 10 MB. File baru akan menggantikan juknis lama setelah disimpan.</p></div><div v-if="selectedActivity?.juknis" class="flex flex-wrap items-center gap-3 rounded-lg bg-[var(--hsn-surface-secondary)] px-3 py-2 text-sm"><a class="admin-link truncate" :href="selectedActivity.juknis.url" target="_blank" rel="noopener">{{ selectedActivity.juknis.name }}</a><button class="admin-button admin-button-danger px-3 py-2 text-xs" type="button" @click="deleteJuknis">Hapus juknis</button></div><input class="admin-input file:mr-3 file:rounded-md file:border-0 file:bg-[var(--hsn-accent-primary)] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-[#071c1e]" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" @change="selectJuknis"></div>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Mulai kegiatan (opsional)<input v-model="form.startsAt" class="admin-input" type="datetime-local" @input="syncEndOfDay($event, 'endsAt')"></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Selesai kegiatan<input v-model="form.endsAt" class="admin-input" type="datetime-local"></label>

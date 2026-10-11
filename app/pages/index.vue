@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import hsnLogo from '~/assets/images/hsn2026.webp'
-import { formatIndonesiaDateTimeRange } from '~/utils/date'
+import { formatIndonesiaDate, formatIndonesiaTimeRange, getIndonesiaDateKey } from '~/utils/date'
 
 type Activity = {
   id: number
@@ -10,26 +10,57 @@ type Activity = {
   organizer: string | null
   description: string | null
   image: string | null
-  imageZoom: number
-  imagePosition: string
   location: string | null
   startsAt: string | null
   endsAt: string | null
   registrationState: string
 }
 
-const { data, pending, error } = await useFetch<{ activities: Activity[] }>('/api/public/activities', {
-  query: { type: 'LOMBA' }
+const { data, pending, error } = await useFetch<{ activities: Activity[] }>('/api/public/activities')
+const currentTime = useState('landing-current-time', () => new Date().toISOString())
+let clockInterval: ReturnType<typeof setInterval> | undefined
+
+const publicActivities = computed(() => data.value?.activities ?? [])
+const activitySearch = ref('')
+const activitiesByTime = (activities: Activity[]): Activity[] => [...activities].sort((a, b) => {
+  const aStart = a.startsAt ? new Date(a.startsAt).getTime() : Number.POSITIVE_INFINITY
+  const bStart = b.startsAt ? new Date(b.startsAt).getTime() : Number.POSITIVE_INFINITY
+  return aStart - bStart
+})
+const notPassedActivities = computed(() => {
+  const now = new Date(currentTime.value).getTime()
+  return activitiesByTime(publicActivities.value.filter((activity) => {
+    if (!activity.startsAt) return true
+    const end = activity.endsAt ? new Date(activity.endsAt).getTime() : new Date(activity.startsAt).getTime()
+    return end >= now
+  }))
+})
+const visibleActivities = computed(() => {
+  const query = activitySearch.value.trim().toLocaleLowerCase('id-ID')
+  if (!query) return notPassedActivities.value
+  return activitiesByTime(publicActivities.value.filter(activity => `${activity.title} ${activity.description ?? ''}`.toLocaleLowerCase('id-ID').includes(query)))
+})
+const todayKey = computed(() => getIndonesiaDateKey(currentTime.value))
+const todayActivities = computed(() => publicActivities.value.filter((activity) => {
+  if (!activity.startsAt) return false
+  const startDate = getIndonesiaDateKey(activity.startsAt)
+  const endDate = activity.endsAt ? getIndonesiaDateKey(activity.endsAt) : startDate
+  return startDate <= todayKey.value && endDate >= todayKey.value
+}).sort((a, b) => new Date(a.startsAt ?? '').getTime() - new Date(b.startsAt ?? '').getTime()))
+const isCurrentlyOngoing = (activity: Activity): boolean => {
+  if (!activity.startsAt) return false
+  const now = new Date(currentTime.value).getTime()
+  return new Date(activity.startsAt).getTime() <= now
+    && (activity.endsAt ? new Date(activity.endsAt).getTime() >= now : getIndonesiaDateKey(activity.startsAt) === todayKey.value)
+}
+const currentDateLabel = computed(() => formatIndonesiaDate(currentTime.value))
+onMounted(() => {
+  clockInterval = setInterval(() => { currentTime.value = new Date().toISOString() }, 30_000)
 })
 
-const featuredActivities = computed(() => (data.value?.activities ?? []).slice(0, 3))
-const featuredIndex = (activity: Activity): number => featuredActivities.value.findIndex(item => item.id === activity.id) + 1
-const registrationLabel = (state: string): string => ({
-  OPEN: 'Pendaftaran dibuka',
-  NOT_OPEN: 'Segera dibuka',
-  FULL: 'Kuota terpenuhi',
-  CLOSED: 'Pendaftaran ditutup'
-}[state] ?? 'Informasi lomba')
+onUnmounted(() => {
+  if (clockInterval) clearInterval(clockInterval)
+})
 
 useHead({
   link: [
@@ -54,60 +85,74 @@ useHead({
           Nasional · 2026</span></span>
     </header>
 
-    <section
-      class="content relative mx-auto flex w-full max-w-6xl flex-1 flex-col items-center justify-center gap-5 py-6 sm:gap-7"
+    <section class="content relative mx-auto grid w-full max-w-6xl flex-1 content-center gap-8 py-8 sm:gap-10 sm:py-10"
       aria-labelledby="headline">
-      <div class="reveal h-px w-12 bg-[var(--hsn-accent-primary)]" aria-hidden="true"></div>
-      <p class="reveal delay-1 eyebrow text-xs font-semibold uppercase text-[var(--hsn-accent-soft)]">Santri Menguatkan
-        Negeri</p>
-      <h1 id="headline" class="sr-only">Hari Santri Nasional 2026 PCNU Trenggalek</h1>
-      <img class="logo block object-contain drop-shadow-[0_24px_50px_rgba(0,0,0,.18)]" :src="hsnLogo"
-        alt="Logo Hari Santri 2026 - Santri Menguatkan Negeri, Menuju Indonesia Emas" width="3543" height="2032"
-        fetchpriority="high">
+      <div class="today-layout">
+        <div class="brand-lockup">
+          <h1 id="headline" class="sr-only">Hari Santri Nasional 2026 PCNU Trenggalek</h1>
+          <img class="logo block object-contain drop-shadow-[0_24px_50px_rgba(0,0,0,.18)]" :src="hsnLogo"
+            alt="Logo Hari Santri 2026 - Santri Menguatkan Negeri, Menuju Indonesia Emas" width="3543" height="2032"
+            fetchpriority="high">
+        </div>
+
+        <section class="today-section text-left" aria-labelledby="today-title" aria-live="polite">
+          <div class="today-heading">
+            <div>
+              <p class="eyebrow text-xs font-semibold uppercase text-[var(--hsn-accent-soft)]">Sedang Berlangsung</p>
+            </div>
+            <time class="today-date" :datetime="todayKey">{{ currentDateLabel }}</time>
+          </div>
+          <p v-if="pending" class="today-empty" role="status">Memuat agenda hari ini...</p>
+          <p v-else-if="error" class="today-empty" role="alert">Agenda hari ini belum dapat dimuat.</p>
+          <p v-else-if="todayActivities.length === 0" class="today-empty">Belum ada kegiatan terjadwal untuk hari ini.
+          </p>
+          <ul v-else class="today-list">
+            <li v-for="(activity, index) in todayActivities" :key="activity.id" class="today-item"
+              :style="{ '--item-index': index }">
+              <NuxtLink class="today-item__link" :to="`/kegiatan/${activity.slug}`">
+                <h3>{{ activity.title }}</h3>
+                <p>{{ activity.description || 'Detail kegiatan akan diumumkan.' }}</p>
+              </NuxtLink>
+              <div class="today-item__footer">
+                <span>{{ activity.location }}</span>
+                <span>{{ formatIndonesiaTimeRange(activity.startsAt, activity.endsAt) }}</span>
+              </div>
+            </li>
+          </ul>
+        </section>
+      </div>
 
       <section class="overview reveal delay-2 w-full text-left" aria-labelledby="overview-title">
         <div class="overview-intro flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between pb-5">
           <div class="overview-copy">
-            <p class="eyebrow text-xs font-semibold uppercase text-[var(--hsn-accent-soft)]">Selayang pandang</p>
-            <h2 id="overview-title"
-              class="overview-title text-2xl font-semibold tracking-[-.035em] text-[var(--hsn-text-primary)] sm:text-3xl">
-              Kegiatan Hari Santri 2026 PCNU Trenggalek</h2>
+            <h2 id="overview-title" class="sr-only">Cari kegiatan Hari Santri 2026</h2>
+            <div class="activity-search">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                <circle cx="10.8" cy="10.8" r="6.8" stroke="currentColor" stroke-width="1.7" />
+                <path d="m16 16 4.2 4.2" stroke="currentColor" stroke-linecap="round" stroke-width="1.7" />
+              </svg>
+              <input id="activity-search" v-model="activitySearch" type="search"
+                placeholder="Cari kegiatan berdasarkan judul atau deskripsi..."
+                aria-label="Cari kegiatan berdasarkan judul atau deskripsi">
+            </div>
           </div>
           <NuxtLink class="catalog-cta shrink-0" to="/kegiatan">
             Jelajahi semua kegiatan <span aria-hidden="true">↗</span>
           </NuxtLink>
         </div>
 
-        <p v-if="pending" class="overview-state" role="status" aria-live="polite">Memuat informasi lomba...</p>
-        <p v-else-if="error" class="overview-state" role="alert">Informasi lomba belum dapat dimuat. Silakan buka
+        <p v-if="pending" class="overview-state" role="status" aria-live="polite">Memuat informasi kegiatan...</p>
+        <p v-else-if="error" class="overview-state" role="alert">Informasi kegiatan belum dapat dimuat. Silakan buka
           katalog kegiatan.</p>
-        <p v-else-if="featuredActivities.length === 0" class="overview-state">Informasi lomba akan segera diumumkan.
-          Pantau katalog kegiatan untuk pembaruan.</p>
-        <ul v-else class="activity-list" aria-label="Sorotan lomba">
-          <li v-for="activity in featuredActivities" :key="activity.id" class="activity-item"
-            :class="{ 'has-image': activity.image }">
-            <div v-if="activity.image" class="activity-media" aria-hidden="true">
-              <img :src="activity.image" alt="" :style="{
-                '--image-zoom': activity.imageZoom || 1,
-                '--image-position': activity.imagePosition || 'center'
-              }" loading="lazy" width="960" height="540">
-            </div>
-            <NuxtLink class="activity-link" :to="`/kegiatan/${activity.slug}`">
-              <span class="activity-topline">
-                <span class="activity-time">{{ formatIndonesiaDateTimeRange(activity.startsAt, activity.endsAt)
-                  }}</span>
-              </span>
-              <h3 class="activity-title">{{ activity.title }}</h3>
-              <p class="activity-description">{{ activity.description || 'Detail kegiatan akan diumumkan.' }}</p>
-              <span class="activity-footer">
-                <span class="activity-location">{{ activity.location || 'Lokasi menyusul' }} <span
-                    aria-hidden="true">·</span> {{ registrationLabel(activity.registrationState) }}</span>
-                <span class="activity-detail">Detail <span aria-hidden="true">↗</span></span>
-              </span>
-            </NuxtLink>
-          </li>
-        </ul>
+        <p v-else-if="activitySearch.trim() && visibleActivities.length === 0" class="overview-state" role="status">
+          Tidak ada kegiatan yang cocok dengan pencarian.</p>
+        <p v-else-if="!activitySearch.trim() && visibleActivities.length === 0" class="overview-state">Belum ada
+          kegiatan mendatang yang dijadwalkan. Pantau katalog untuk pembaruan.</p>
+        <p v-if="!pending && !error && activitySearch.trim() && visibleActivities.length" class="search-results"
+          role="status" aria-live="polite">{{ visibleActivities.length }} kegiatan ditemukan.</p>
+        <ActivityRoadmap v-if="!pending && !error && visibleActivities.length" :activities="visibleActivities" title-tag="h3" />
       </section>
+
     </section>
 
     <footer
@@ -137,13 +182,15 @@ useHead({
 
 .stage {
   isolation: isolate;
-  overflow: hidden;
+  overflow: visible;
   background: radial-gradient(circle at 50% 20%, #124b4d 0%, #0a292b 34%, #071c1e 74%);
+  background-attachment: fixed;
+  background-size: cover;
 }
 
 .stage::before {
   content: "";
-  position: absolute;
+  position: fixed;
   z-index: -1;
   width: min(82vw, 740px);
   aspect-ratio: 1;
@@ -163,6 +210,160 @@ useHead({
 
 .overview {
   max-width: 1050px;
+  justify-self: center;
+}
+
+.today-layout {
+  display: grid;
+  width: 100%;
+  gap: 28px;
+  align-items: center;
+}
+
+.brand-lockup {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.today-section {
+  min-width: 0;
+  animation: agenda-arrive .7s .2s cubic-bezier(.2, .75, .25, 1) both;
+}
+
+.today-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.today-heading>div {
+  display: grid;
+  gap: 8px;
+}
+
+.today-title {
+  margin: 0;
+  color: var(--hsn-text-primary);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -.035em;
+}
+
+.today-date {
+  flex: 0 0 auto;
+  color: var(--hsn-text-muted);
+  font-size: 12px;
+}
+
+.today-empty {
+  margin: 0;
+  border-top: 1px solid var(--hsn-border-subtle);
+  padding: 14px 0;
+  color: var(--hsn-text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.today-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: 24px;
+  row-gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--hsn-border-subtle);
+}
+
+.today-item {
+  min-width: 0;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--hsn-border-subtle);
+  animation: agenda-item-arrive .55s calc(.12s + var(--item-index, 0) * .09s) cubic-bezier(.2, .75, .25, 1) both;
+}
+
+.today-item__topline,
+.today-item__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.today-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--hsn-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.today-live.is-active {
+  color: var(--hsn-accent-soft);
+}
+
+.today-live__dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--hsn-text-muted);
+}
+
+.today-live.is-active .today-live__dot {
+  background: var(--hsn-accent-primary);
+  animation: live-pulse 1.8s ease-in-out infinite;
+}
+
+.today-item__time {
+  color: var(--hsn-text-secondary);
+  font-size: 11px;
+  text-align: right;
+}
+
+.today-item__link {
+  display: block;
+  margin-top: 10px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.today-item__link:focus-visible {
+  outline: 2px solid var(--hsn-accent-soft);
+  outline-offset: 3px;
+}
+
+.today-item__link h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.today-item__link p {
+  display: -webkit-box;
+  margin: 5px 0 0;
+  overflow: hidden;
+  color: var(--hsn-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.today-item__footer {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  color: var(--hsn-text-muted);
+  font-size: 10px;
 }
 
 .overview-intro {
@@ -172,11 +373,62 @@ useHead({
 .overview-copy {
   display: grid;
   gap: 12px;
+  width: 100%;
 }
 
-.overview-title,
 .overview-description {
   margin: 0;
+}
+
+.activity-search {
+  display: flex;
+  width: min(100%, 640px);
+  min-height: 48px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  border: 1px solid var(--hsn-border-subtle);
+  border-radius: 8px;
+  background: rgba(10, 41, 43, .72);
+  color: var(--hsn-text-muted);
+  transition: border-color .2s ease, background-color .2s ease;
+}
+
+.activity-search:focus-within {
+  border-color: var(--hsn-accent-soft);
+  background: rgba(10, 41, 43, .92);
+}
+
+.activity-search svg {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 auto;
+}
+
+.activity-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--hsn-text-primary);
+  font: inherit;
+  font-size: 14px;
+}
+
+.activity-search input::placeholder {
+  color: var(--hsn-text-muted);
+  opacity: .9;
+}
+
+.activity-search:focus-within input:focus-visible {
+  outline: none;
+}
+
+.search-results {
+  margin: 0 0 10px;
+  color: var(--hsn-text-muted);
+  font-size: 12px;
 }
 
 .overview-description {
@@ -282,9 +534,7 @@ useHead({
   height: 100%;
   margin-left: auto;
   object-fit: cover;
-  object-position: var(--image-position, right center);
-  transform: scale(var(--image-zoom, 1));
-  transform-origin: var(--image-position, right center);
+  object-position: center;
   -webkit-mask-image: linear-gradient(100deg, transparent 0%, rgba(0, 0, 0, .18) 30%, rgba(0, 0, 0, .72) 50%, #000 100%);
   mask-image: linear-gradient(100deg, transparent 0%, rgba(0, 0, 0, .18) 30%, rgba(0, 0, 0, .72) 50%, #000 100%);
 }
@@ -367,6 +617,7 @@ useHead({
   letter-spacing: .12em;
   text-transform: uppercase;
   transition: transform .2s ease;
+  white-space: nowrap;
 }
 
 .activity-link:hover .activity-detail {
@@ -382,6 +633,44 @@ useHead({
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes agenda-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes agenda-item-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes live-pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: .48;
+    transform: scale(.78);
   }
 }
 
@@ -455,6 +744,10 @@ useHead({
   .activity-description {
     min-height: 0;
   }
+
+  .today-item__topline {
+    align-items: flex-start;
+  }
 }
 
 @media (min-width: 640px) {
@@ -463,10 +756,10 @@ useHead({
   }
 
   .logo {
-    width: min(60vw, 520px);
+    width: min(76vw, 520px);
   }
 
-  .activity-list {
+  .today-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -476,8 +769,22 @@ useHead({
 }
 
 @media (min-width: 1100px) {
+  .today-layout {
+    grid-template-columns: minmax(280px, .78fr) minmax(0, 1.22fr);
+    gap: 40px;
+  }
+
+  .logo {
+    width: min(32vw, 420px);
+    max-height: 42svh;
+  }
+
   .activity-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .today-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -495,6 +802,10 @@ useHead({
   .activity-item:hover,
   .activity-link:hover .activity-detail {
     transform: none;
+  }
+
+  .today-live__dot {
+    animation: none !important;
   }
 }
 </style>

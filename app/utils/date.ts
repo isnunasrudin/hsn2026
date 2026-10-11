@@ -36,7 +36,17 @@ export const formatIndonesiaTimeRange = (startsAt: string | null, endsAt: string
   if (!startsAt) return 'Waktu menyusul'
   const start = timeFormatter.format(new Date(startsAt))
   if (!endsAt) return `${start} WIB`
-  const end = timeFormatter.format(new Date(endsAt))
+  const endDate = new Date(endsAt)
+  const end = timeFormatter.format(endDate)
+  const endParts = Object.fromEntries(timeFormatter.formatToParts(endDate).map(part => [part.type, part.value]))
+  const endsAtAtEndOfDay = endParts.hour === '23' && endParts.minute === '59'
+
+  if (endsAtAtEndOfDay) {
+    return getIndonesiaDateKey(startsAt) === getIndonesiaDateKey(endsAt)
+      ? `${start} WIB`
+      : `${start} WIB – ${formatIndonesiaDate(endsAt)}`
+  }
+
   return getIndonesiaDateKey(startsAt) === getIndonesiaDateKey(endsAt)
     ? `${start}–${end} WIB`
     : `${start} WIB – ${formatIndonesiaDate(endsAt)}, ${end} WIB`

@@ -4,6 +4,7 @@ import { Prisma } from '../../../generated/prisma/client'
 import { assertSameOrigin } from '../../../utils/auth'
 import { requireActivityAccess } from '../../../utils/authorization'
 import { activityInputSchema, activityPatchSchema, activityPayload, activitySlugFromTitle, getActivityId, getActivityOrThrow, uniqueActivitySlug } from '../../../utils/activity'
+import { removeActivityImage } from '../../../utils/activity-image'
 
 export default defineEventHandler(async (event) => {
   assertSameOrigin(event)
@@ -34,6 +35,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const activity = await db.activity.update({ where: { id: activityId }, data: { ...merged.data, registrationFields: merged.data.registrationFields as Prisma.InputJsonValue } })
+  if (current.image !== activity.image) await removeActivityImage(activityId, current.image)
 
   return { activity: activityPayload({ ...activity, registrationFields: merged.data.registrationFields }) }
 })

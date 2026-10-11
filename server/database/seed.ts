@@ -88,8 +88,6 @@ const seedActivities = async (createdBy: number): Promise<void> => {
       slug,
       description,
       image,
-      imageZoom: title.includes('Silvi') ? 1.2 : 1,
-      imagePosition: title.includes('Gus Salsaladin') || title.includes('Silvi') ? 'left top' : 'right center',
       displayOrder: initialActivities.indexOf(initialActivities.find(item => item[2] === slug)!),
       location,
       startsAt: atWib(startsAt),

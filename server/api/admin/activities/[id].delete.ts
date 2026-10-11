@@ -5,6 +5,7 @@ import { requireSuperAdmin } from '../../../utils/authorization'
 import { getActivityId, getActivityOrThrow } from '../../../utils/activity'
 import { removeRegistrationUpload } from '../../../utils/registration-upload'
 import { removeActivityJuknis } from '../../../utils/activity-juknis'
+import { removeActivityImage } from '../../../utils/activity-image'
 
 export default defineEventHandler(async (event) => {
   assertSameOrigin(event)
@@ -21,5 +22,6 @@ export default defineEventHandler(async (event) => {
 
   await Promise.all(result.registrationRecords.map(registration => removeRegistrationUpload(registration.code)))
   await removeActivityJuknis(activityId, activity.juknisStorageName)
+  await removeActivityImage(activityId, activity.image)
   return { id: result.deleted.id }
 })

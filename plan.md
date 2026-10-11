@@ -101,9 +101,7 @@ Tambahkan script berikut ke `package.json`:
 | `organizer` | text nullable | Penyelenggara atau penanggung jawab |
 | `slug` | text unique | URL publik |
 | `description` | text nullable | Deskripsi |
-| `image` | text nullable | Path gambar dari direktori `public` |
-| `image_zoom` | real | Zoom gambar roadmap, default `1` |
-| `image_position` | text | Posisi gambar roadmap, default `right center` |
+| `image` | text nullable | Path publik atau nama file gambar crop kegiatan |
 | `display_order` | integer | Urutan tampil pada roadmap |
 | `location` | text nullable | Lokasi kegiatan |
 | `starts_at` | datetime | Waktu mulai kegiatan |
@@ -386,7 +384,7 @@ Frontend hanya menampilkan hasil tersebut dan tidak menentukan kelayakan pendaft
 - Tambahkan tombol menuju katalog kegiatan tanpa mengganti struktur data roadmap yang sudah ada.
 - Pindahkan data awal `timelineItems` ke seed `activities` agar kegiatan hanya mempunyai satu sumber data.
 - Ubah `timeline.vue` agar memuat kegiatan `PUBLISHED` dari API publik, mengelompokkannya per tanggal seperti perilaku sekarang, dan menautkan agenda ke detail kegiatan.
-- Pertahankan dukungan overlay `image`, `image_zoom`, dan `image_position` agar hasil visual yang sudah disesuaikan tidak berubah.
+- Pertahankan dukungan overlay gambar pada landing dan timeline dengan sumber gambar yang sama.
 - Gunakan warna teal, emas, tipografi, dan pola visual yang sudah didefinisikan di `DESIGN.md`.
 
 ### Fase 8 - Hardening dan Dokumentasi Operasional

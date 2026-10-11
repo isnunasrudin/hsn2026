@@ -3,6 +3,7 @@ import { createError } from 'h3'
 import { z } from 'zod'
 import { db } from '../database/client'
 import type { Activity, QuotaMode } from '../generated/prisma/client'
+import { ACTIVITY_IMAGE_PREFIX } from './activity-image'
 import { registrationSystemFieldKeys, type RegistrationField, type RegistrationFile, type RegistrationAnswers } from '../database/schema'
 
 export type RegistrationState = 'DRAFT' | 'NOT_REQUIRED' | 'NOT_OPEN' | 'OPEN' | 'FULL' | 'CLOSED' | 'CANCELLED'
@@ -56,9 +57,7 @@ export const publicActivityPayload = (activity: Activity & { registrationFields:
     size: activity.juknisSize,
     url: `/api/public/activities/${activity.slug}/juknis`
   } : null,
-  image: activity.image,
-  imageZoom: activity.imageZoom,
-  imagePosition: activity.imagePosition,
+  image: activity.image?.startsWith(ACTIVITY_IMAGE_PREFIX) ? `/api/public/activities/${activity.slug}/image` : activity.image,
   displayOrder: activity.displayOrder,
   location: activity.location,
   startsAt: activity.startsAt?.toISOString() ?? null,

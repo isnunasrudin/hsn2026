@@ -87,7 +87,7 @@ const main = async (): Promise<void> => {
     const now = Date.now()
     const activityInput = {
       type: 'LOMBA', title: 'Smoke Test Lomba', organizer: 'QA Sementara', slug: activitySlug,
-      description: 'Data uji sementara', image: null, imageZoom: 1, imagePosition: 'right center',
+      description: 'Data uji sementara', image: null,
       displayOrder: 9999, location: 'Trenggalek',
       startsAt: new Date(now + 2 * 60 * 60 * 1000).toISOString(),
       endsAt: new Date(now + 4 * 60 * 60 * 1000).toISOString(),

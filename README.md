@@ -87,7 +87,7 @@ Pengelolaan pendaftar tersedia pada `/admin/registrations/:activityId` untuk aku
 
 Status `VERIFIED` mencatat operator serta waktu verifikasi. Perubahan status yang mengaktifkan kembali pendaftar memeriksa kapasitas dalam transaksi PostgreSQL; status `REJECTED` dan `CANCELLED` otomatis tidak lagi dihitung sebagai kuota aktif.
 
-Landing page menyediakan akses ke katalog kegiatan melalui `/kegiatan`. Roadmap `/timeline` membaca kegiatan `PUBLISHED` dari endpoint publik yang sama, mengelompokkannya berdasarkan tanggal, dan menautkan setiap agenda ke halaman detail. Data awal roadmap disediakan oleh seed database, termasuk penyelenggara, rentang waktu, gambar overlay, zoom, dan posisi gambar.
+Landing page menyediakan akses ke katalog kegiatan melalui `/kegiatan`. Roadmap `/timeline` membaca kegiatan `PUBLISHED` dari endpoint publik yang sama, mengelompokkannya berdasarkan tanggal, dan menautkan setiap agenda ke halaman detail. Gambar kegiatan dapat diunggah di admin, dipotong otomatis dengan rasio 16:9, lalu dipakai secara konsisten di halaman publik.
 
 ## Development Server
 

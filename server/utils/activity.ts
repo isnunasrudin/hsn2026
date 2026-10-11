@@ -47,8 +47,6 @@ const activityFieldsSchema = z.object({
   slug: z.string().trim().max(180).transform(value => value || null).nullable(),
   description: z.string().trim().max(5000).nullable(),
   image: z.string().trim().max(500).nullable(),
-  imageZoom: z.number().positive().max(5),
-  imagePosition: z.string().trim().min(1).max(120),
   displayOrder: z.number().int().min(0),
   location: z.string().trim().max(240).nullable(),
   startsAt: nullableDateValue,
