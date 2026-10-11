@@ -78,7 +78,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { formatIndonesiaDateRange } from '~/utils/date'
+import { formatIndonesiaDate, formatIndonesiaTimeRange, getIndonesiaDateKey } from '~/utils/date'
 
 useHead({
   link: [
@@ -108,38 +108,27 @@ type PublicActivity = {
 }
 
 const { data: activitiesData, pending, error } = await useFetch<{ activities: PublicActivity[] }>('/api/public/activities')
-const timeFormatter = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jakarta' })
-const formatDateRange = (startsAt: string, endsAt: string | null): string => {
-  return formatIndonesiaDateRange(startsAt, endsAt)
-}
-const formatTimeRange = (startsAt: string, endsAt: string | null): string => {
-  const start = `${timeFormatter.format(new Date(startsAt))} WIB`
-  return endsAt ? `${start}–${timeFormatter.format(new Date(endsAt))} WIB` : start
-}
-
 const timelineItems = computed(() => {
   const activities = activitiesData.value?.activities ?? []
   return activities.map(activity => ({
     ...activity,
-    date: formatDateRange(activity.startsAt, activity.endsAt),
-    datetime: activity.startsAt.slice(0, 10),
-    time: formatTimeRange(activity.startsAt, activity.endsAt),
+    date: formatIndonesiaDate(activity.startsAt),
+    datetime: getIndonesiaDateKey(activity.startsAt),
+    time: formatIndonesiaTimeRange(activity.startsAt, activity.endsAt),
     pj: activity.organizer || activity.type,
     tone: activity.type === 'LOMBA' ? 'teal' : 'gold'
   }))
 })
 
-const timelineGroups = computed(() => timelineItems.value.reduce((groups, item) => {
-  const group = groups.find((entry) => entry.key === item.date)
-
-  if (group) {
-    group.items.push(item)
-  } else {
-    groups.push({ key: item.date, date: item.date, datetime: item.datetime, items: [item] })
+const timelineGroups = computed(() => {
+  const groups = new Map<string, { key: string; date: string; datetime: string; items: typeof timelineItems.value }>()
+  for (const item of timelineItems.value) {
+    const group = groups.get(item.datetime)
+    if (group) group.items.push(item)
+    else groups.set(item.datetime, { key: item.datetime, date: item.date, datetime: item.datetime, items: [item] })
   }
-
-  return groups
-}, []))
+  return [...groups.values()]
+})
 </script>
 
 <style scoped>

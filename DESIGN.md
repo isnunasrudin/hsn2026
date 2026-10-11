@@ -62,11 +62,11 @@ Landing publik membawa identitas yang sama ke suasana perayaan: logo menjadi fok
 ### Sorotan lomba
 
 - Structure: pengantar singkat, hingga tiga kegiatan `LOMBA` terpublikasi, dan tautan ke katalog lengkap.
-- Activity item: tanggal pelaksanaan, nama lomba, penyelenggara, lokasi, dan tautan detail.
+- Activity item: tanggal dan waktu pelaksanaan, nama lomba, deskripsi, penyelenggara, lokasi, status pendaftaran, gambar bila tersedia, serta tautan detail. Permukaan gelap transparan, radius 3px, dan lapisan gambar dengan gradien mengikuti kartu agenda `/timeline`.
 - Primary action: tombol berisi aksen emas untuk membuka katalog kegiatan.
 - Spacing: tumpukan pengantar dan informasi pada kartu memakai jarak vertikal 12px; pemisah pengantar ke daftar 16px di ponsel dan 12px di desktop.
 - States: loading, error, empty, dan populated.
-- Layout: daftar responsif dengan permukaan tonal, tidak menampilkan data statis yang bisa berbeda dari katalog.
+- Layout: daftar responsif dengan kartu agenda, tidak menampilkan data statis yang bisa berbeda dari katalog.
 - Accessibility: heading berurutan, daftar kegiatan semantik, status pemuatan/error diumumkan, tautan memiliki nama yang menjelaskan tujuannya.
 
 ### Admin modal
@@ -86,7 +86,7 @@ Landing publik membawa identitas yang sama ke suasana perayaan: logo menjadi fok
 ## 7. Depth & Surface
 
 - Strategy: mixed; panel menggunakan tonal shift dan border subtle, tanpa shadow hitam pekat.
-- Radius: 8px untuk input/button, 12px untuk sorotan lomba, 16px untuk panel, full untuk badge.
+- Radius: 3px untuk kartu agenda/sorotan lomba, 8px untuk input/button, 16px untuk panel, full untuk badge.
 
 ## 8. Accessibility Constraints & Accepted Debt
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatIndonesiaDateRange, formatIndonesiaDateTime } from '~/utils/date'
+import { formatIndonesiaDateRange, formatIndonesiaDateTimeRange, formatIndonesiaTimeRange, groupByIndonesiaDate } from '~/utils/date'
 
 type ActivityType = 'LOMBA' | 'EVENT'
 type ActivityStatus = 'DRAFT' | 'PUBLISHED' | 'CLOSED' | 'CANCELLED'
@@ -100,6 +100,7 @@ const filteredActivities = computed(() => {
     return matchesQuery && matchesType && matchesStatus
   })
 })
+const filteredActivityGroups = computed(() => groupByIndonesiaDate(filteredActivities.value))
 const operators = computed(() => (usersData.value?.users ?? []).filter(operator => operator.role === 'OPERATOR'))
 const selectedActivity = computed(() => activities.value.find(activity => activity.id === editingId.value) ?? null)
 const isRegistrationActivity = computed(() => form.type === 'LOMBA')
@@ -447,7 +448,25 @@ const updateActivity = async (): Promise<void> => {
     <section class="admin-panel overflow-hidden" aria-labelledby="activity-list-title">
       <div class="grid gap-4 border-b border-[var(--hsn-border-subtle)] p-5 sm:grid-cols-[minmax(0,1fr)_160px_180px_auto] sm:items-end sm:p-6"><label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Cari kegiatan<input v-model="filters.q" class="admin-input" type="search" placeholder="Judul, slug, penyelenggara..."></label><label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Jenis<select v-model="filters.type" class="admin-input"><option value="ALL">Semua jenis</option><option value="EVENT">Event</option><option value="LOMBA">Lomba</option></select></label><label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Status<select v-model="filters.status" class="admin-input"><option value="ALL">Semua status</option><option value="DRAFT">Draft</option><option value="PUBLISHED">Published</option><option value="CLOSED">Closed</option><option value="CANCELLED">Cancelled</option></select></label><button class="admin-button admin-button-secondary" type="button" @click="filters.q = ''; filters.type = 'ALL'; filters.status = 'ALL'">Reset</button></div>
       <div class="border-b border-[var(--hsn-border-subtle)] px-5 py-4 sm:px-6"><h2 id="activity-list-title" class="text-lg font-semibold text-[var(--hsn-text-primary)]">Daftar kegiatan</h2><p class="mt-1 text-sm text-[var(--hsn-text-muted)]">{{ filteredActivities.length }} dari {{ activities.length }} kegiatan</p></div>
-      <div class="overflow-x-auto"><table class="admin-table w-full min-w-[960px] border-collapse"><thead><tr><th>Kegiatan</th><th>Jadwal</th><th>Pendaftaran</th><th>Status</th><th><span class="sr-only">Aksi</span></th></tr></thead><tbody><tr v-for="activity in filteredActivities" :key="activity.id"><td><p class="font-medium text-[var(--hsn-text-primary)]">{{ activity.title }}</p><p class="mt-1 text-sm text-[var(--hsn-text-muted)]">{{ activity.type }} · /{{ activity.slug }}</p></td><td class="text-sm text-[var(--hsn-text-secondary)]">{{ formatIndonesiaDateTime(activity.startsAt) }}</td><td class="text-sm text-[var(--hsn-text-secondary)]"><span v-if="activity.type === 'LOMBA'">{{ formatIndonesiaDateRange(activity.registrationOpensAt, activity.registrationClosesAt) }}</span><span v-else>Tanpa pendaftaran</span></td><td><span class="admin-badge-accent rounded-full px-2.5 py-1 text-xs font-semibold">{{ activity.status }}</span></td><td><div class="flex justify-end gap-2"><NuxtLink v-if="activity.type === 'LOMBA'" class="admin-button admin-button-secondary px-3 py-2 text-xs" :to="`/admin/registrations/${activity.id}`">Pendaftar</NuxtLink><button class="admin-button admin-button-secondary px-3 py-2 text-xs" type="button" @click="editActivity(activity)">Edit</button><button class="admin-button admin-button-danger px-3 py-2 text-xs" type="button" @click="requestDelete(activity)">Hapus</button></div></td></tr><tr v-if="!pending && filteredActivities.length === 0"><td class="py-12 text-center text-sm text-[var(--hsn-text-muted)]" colspan="5">Tidak ada kegiatan yang cocok.</td></tr><tr v-if="pending"><td class="py-12 text-center text-sm text-[var(--hsn-text-muted)]" colspan="5">Memuat kegiatan...</td></tr></tbody></table></div>
+      <div class="overflow-x-auto">
+        <table class="admin-table w-full min-w-[960px] border-collapse">
+          <thead><tr><th>Kegiatan</th><th>Jadwal</th><th>Pendaftaran</th><th>Status</th><th><span class="sr-only">Aksi</span></th></tr></thead>
+          <tbody>
+            <template v-for="group in filteredActivityGroups" :key="group.key">
+              <tr v-if="group.items.length > 1"><td colspan="5" class="bg-[var(--hsn-surface-secondary)] font-semibold text-[var(--hsn-text-primary)]">{{ group.date }}</td></tr>
+              <tr v-for="activity in group.items" :key="activity.id">
+                <td><p class="font-medium text-[var(--hsn-text-primary)]">{{ activity.title }}</p><p class="mt-1 text-sm text-[var(--hsn-text-muted)]">{{ activity.type }} · /{{ activity.slug }}</p></td>
+                <td class="text-sm text-[var(--hsn-text-secondary)]">{{ group.items.length === 1 ? formatIndonesiaDateTimeRange(activity.startsAt, activity.endsAt) : formatIndonesiaTimeRange(activity.startsAt, activity.endsAt) }}</td>
+                <td class="text-sm text-[var(--hsn-text-secondary)]"><span v-if="activity.type === 'LOMBA'">{{ formatIndonesiaDateRange(activity.registrationOpensAt, activity.registrationClosesAt) }}</span><span v-else>Tanpa pendaftaran</span></td>
+                <td><span class="admin-badge-accent rounded-full px-2.5 py-1 text-xs font-semibold">{{ activity.status }}</span></td>
+                <td><div class="flex justify-end gap-2"><NuxtLink v-if="activity.type === 'LOMBA'" class="admin-button admin-button-secondary px-3 py-2 text-xs" :to="`/admin/registrations/${activity.id}`">Pendaftar</NuxtLink><button class="admin-button admin-button-secondary px-3 py-2 text-xs" type="button" @click="editActivity(activity)">Edit</button><button class="admin-button admin-button-danger px-3 py-2 text-xs" type="button" @click="requestDelete(activity)">Hapus</button></div></td>
+              </tr>
+            </template>
+            <tr v-if="!pending && filteredActivities.length === 0"><td class="py-12 text-center text-sm text-[var(--hsn-text-muted)]" colspan="5">Tidak ada kegiatan yang cocok.</td></tr>
+            <tr v-if="pending"><td class="py-12 text-center text-sm text-[var(--hsn-text-muted)]" colspan="5">Memuat kegiatan...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
   </section>
 </template>
