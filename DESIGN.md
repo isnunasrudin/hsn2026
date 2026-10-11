@@ -74,9 +74,9 @@ Landing publik membawa identitas yang sama ke suasana perayaan: logo menjadi fok
 
 - Structure: tanggal WIB, daftar kegiatan yang rentang tanggalnya mencakup hari ini, waktu, status aktif, lokasi, dan penyelenggara.
 - Layout: lockup logo di kiri dan daftar grid di kanan pada desktop; satu kolom di layar kecil. Selayang pandang lomba mengikuti bagian hero.
-- Surfaces: panel teal tonal; list selayang pandang satu kolom di mobile/tablet dan dua kolom di desktop. Aksen emas hanya untuk status yang sedang berlangsung.
+- Surfaces: panel agenda hari ini memakai teal tonal, tepi emas, dan hierarki judul kuat sebagai titik fokus landing; list satu kolom di mobile/tablet dan dua kolom di desktop. Aksen emas hanya untuk status yang sedang berlangsung.
 - States: loading, error, empty, scheduled today, and currently in progress.
-- Motion: section and items enter with opacity/vertical transform; active dot pulses. `prefers-reduced-motion` disables the pulse and reduces entry motion.
+- Motion: section enters with opacity/transform and items enter in sequence; active dot pulses. `prefers-reduced-motion` disables motion.
 - Accessibility: Indonesian date and time are explicit, schedule links are keyboard reachable, and asynchronous states use polite announcements.
 
 ### Roadmap katalog kegiatan

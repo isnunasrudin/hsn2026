@@ -53,6 +53,7 @@ const isCurrentlyOngoing = (activity: Activity): boolean => {
   return new Date(activity.startsAt).getTime() <= now
     && (activity.endsAt ? new Date(activity.endsAt).getTime() >= now : getIndonesiaDateKey(activity.startsAt) === todayKey.value)
 }
+const hasOngoingActivities = computed(() => todayActivities.value.some(isCurrentlyOngoing))
 const currentDateLabel = computed(() => formatIndonesiaDate(currentTime.value))
 onMounted(() => {
   clockInterval = setInterval(() => { currentTime.value = new Date().toISOString() }, 30_000)
@@ -98,8 +99,10 @@ useHead({
         <section v-if="todayActivities?.length > 0" class="today-section text-left" aria-labelledby="today-title"
           aria-live="polite">
           <div class="today-heading">
-            <div>
-              <p class="eyebrow text-xs font-semibold uppercase text-[var(--hsn-accent-soft)]">Hari Ini</p>
+            <div class="today-heading__title">
+              <p class="eyebrow text-xs font-semibold uppercase text-[var(--hsn-accent-soft)]">Agenda utama</p>
+              <h2 id="today-title" class="today-title">Hari ini</h2>
+              <span v-if="hasOngoingActivities" class="today-live is-active"><span class="today-live__dot" aria-hidden="true"></span>Sedang berlangsung</span>
             </div>
             <time class="today-date" :datetime="todayKey">{{ currentDateLabel }}</time>
           </div>
@@ -226,29 +229,98 @@ useHead({
 }
 
 .today-section {
+  position: relative;
   min-width: 0;
-  animation: agenda-arrive .7s .2s cubic-bezier(.2, .75, .25, 1) both;
+  overflow: hidden;
+  isolation: isolate;
+  padding: clamp(20px, 3vw, 30px);
+  border: 1px solid rgba(233, 165, 30, .48);
+  border-left: 3px solid var(--hsn-accent-primary);
+  border-radius: 14px;
+  background: linear-gradient(140deg, rgba(18, 75, 77, .82), rgba(4, 31, 32, .88) 76%);
+  box-shadow: 0 20px 64px rgba(0, 0, 0, .2), 0 0 38px rgba(233, 165, 30, .08);
+  animation: today-focus-arrive .9s .12s cubic-bezier(.2, .75, .25, 1) both;
 }
 
-.today-heading {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 12px;
-}
-
-.today-heading>div {
-  display: grid;
-  gap: 8px;
+.today-section::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -130px;
+  right: -110px;
+  width: 280px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(233, 165, 30, .17), transparent 68%);
+  pointer-events: none;
 }
 
 .today-title {
   margin: 0;
   color: var(--hsn-text-primary);
-  font-size: 20px;
+  font-size: clamp(1.35rem, 2.2vw, 1.75rem);
   font-weight: 600;
-  letter-spacing: -.035em;
+  letter-spacing: -.045em;
+  line-height: 1.2;
+}
+
+.today-section .eyebrow {
+  margin: 0;
+  color: var(--hsn-accent-soft);
+}
+
+.today-section .today-date {
+  padding: 8px 11px;
+  border: 1px solid rgba(244, 241, 233, .14);
+  border-radius: 999px;
+  background: rgba(4, 31, 32, .42);
+  color: var(--hsn-text-secondary);
+}
+
+.today-section .today-list {
+  margin-top: 20px;
+  border-top-color: rgba(244, 241, 233, .2);
+}
+
+.today-section .today-item {
+  border-bottom-color: rgba(244, 241, 233, .16);
+}
+
+.today-section .today-item__link h3 {
+  font-size: 17px;
+}
+
+.today-section .today-item__footer {
+  color: rgba(233, 183, 79, .9);
+}
+
+.today-section .today-item:last-child {
+  border-bottom: 0;
+}
+
+@keyframes today-focus-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.today-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.today-heading__title {
+  display: grid;
+  gap: 5px;
 }
 
 .today-date {
@@ -296,10 +368,11 @@ useHead({
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: var(--hsn-text-muted);
+  margin-top: 5px;
+  color: var(--hsn-accent-soft);
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: .1em;
+  font-weight: 700;
+  letter-spacing: .12em;
   text-transform: uppercase;
 }
 
@@ -312,7 +385,8 @@ useHead({
   height: 7px;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: var(--hsn-text-muted);
+  background: var(--hsn-accent-primary);
+  box-shadow: 0 0 0 4px rgba(233, 165, 30, .12);
 }
 
 .today-live.is-active .today-live__dot {
@@ -494,7 +568,7 @@ useHead({
 .activity-item {
   position: relative;
   min-width: 0;
-  min-height: 178px;
+  /* min-height: 178px; */
   overflow: hidden;
   isolation: isolate;
   border: 1px solid rgba(244, 241, 233, .12);
@@ -746,6 +820,15 @@ useHead({
   .today-item__topline {
     align-items: flex-start;
   }
+
+  .today-heading {
+    align-items: flex-start;
+  }
+
+  .today-section .today-date {
+    max-width: 46%;
+    text-align: right;
+  }
 }
 
 @media (min-width: 640px) {
@@ -803,6 +886,10 @@ useHead({
   }
 
   .today-live__dot {
+    animation: none !important;
+  }
+
+  .today-section {
     animation: none !important;
   }
 }
