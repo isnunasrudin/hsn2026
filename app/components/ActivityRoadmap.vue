@@ -40,8 +40,9 @@ const typeTone = (type: Activity['type']): string => type === 'LOMBA' ? 'is-teal
               <img :src="activity.image" :alt="`Dokumentasi ${activity.title}`" loading="lazy" width="960" height="540">
             </div>
             <div class="roadmap-event__topline">
-              <span class="agenda-status" :class="typeTone(activity.type)">{{ activity.organizer || activity.type
-                }}</span>
+              <span v-if="activity.type == 'LOMBA'"
+                class="admin-badge-accent rounded-full px-2.5 py-1 text-xs font-semibold">LOMBA</span>
+              <span v-else class="agenda-status" :class="typeTone(activity.type)">Kegiatan</span>
               <span v-if="activity.startsAt" class="agenda-time">{{ formatIndonesiaTimeRange(activity.startsAt,
                 activity.endsAt) }}</span>
             </div>
