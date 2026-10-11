@@ -102,7 +102,8 @@ useHead({
             <div class="today-heading__title">
               <p class="eyebrow text-xs font-semibold uppercase text-[var(--hsn-accent-soft)]">Agenda utama</p>
               <h2 id="today-title" class="today-title">Hari ini</h2>
-              <span v-if="hasOngoingActivities" class="today-live is-active"><span class="today-live__dot" aria-hidden="true"></span>Sedang berlangsung</span>
+              <span v-if="hasOngoingActivities" class="today-live is-active"><span class="today-live__dot"
+                  aria-hidden="true"></span>Sedang berlangsung</span>
             </div>
             <time class="today-date" :datetime="todayKey">{{ currentDateLabel }}</time>
           </div>
@@ -568,7 +569,7 @@ useHead({
 .activity-item {
   position: relative;
   min-width: 0;
-  /* min-height: 178px; */
+  min-height: 178px;
   overflow: hidden;
   isolation: isolate;
   border: 1px solid rgba(244, 241, 233, .12);
