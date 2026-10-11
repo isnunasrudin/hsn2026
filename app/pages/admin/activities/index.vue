@@ -101,7 +101,7 @@ const slugFromTitle = (title: string): string => title
   .replace(/^-+|-+$/g, '')
 
 watch(() => form.title, (title) => {
-  if (!isSlugManuallyEdited.value) form.slug = slugFromTitle(title)
+  if (editingId.value === null && !isSlugManuallyEdited.value) form.slug = slugFromTitle(title)
 }, { flush: 'sync' })
 
 const activities = computed(() => data.value?.activities ?? [])
@@ -172,6 +172,7 @@ const toLocalInput = (value: string | null): string => {
 const toIso = (value: string): string => new Date(value).toISOString()
 
 const syncEndOfDay = (event: Event, endField: 'endsAt' | 'registrationClosesAt'): void => {
+  if (editingId.value !== null && endField === 'endsAt') return
   if (!(event.currentTarget instanceof HTMLInputElement)) return
   const [date] = event.currentTarget.value.split('T')
   if (!date) return
