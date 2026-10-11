@@ -84,7 +84,7 @@ Landing publik membawa identitas yang sama ke suasana perayaan: logo menjadi fok
 - Structure: header navigasi, judul agenda, jumlah kegiatan, filter jenis bila tersedia, rail tanggal bernomor, dan grid item per tanggal.
 - Shared surface: halaman `/timeline` dan `/kegiatan` memakai komponen serta kartu roadmap yang sama.
 - States: loading, error, empty, filtered, and populated; cards link to the activity detail route.
-- Responsive behavior: kartu dua kolom pada layar lebar dan satu kolom pada layar kecil.
+- Responsive behavior: kartu dua kolom pada layar lebar dan satu kolom pada layar kecil. Di ponsel, angka penanda disembunyikan dan garis bawah tanggal tersambung ke rail vertikal agar kartu lebih lebar.
 
 ### Admin modal
 

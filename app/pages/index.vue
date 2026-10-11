@@ -95,27 +95,24 @@ useHead({
             fetchpriority="high">
         </div>
 
-        <section class="today-section text-left" aria-labelledby="today-title" aria-live="polite">
+        <section v-if="todayActivities?.length > 0" class="today-section text-left" aria-labelledby="today-title"
+          aria-live="polite">
           <div class="today-heading">
             <div>
-              <p class="eyebrow text-xs font-semibold uppercase text-[var(--hsn-accent-soft)]">Sedang Berlangsung</p>
+              <p class="eyebrow text-xs font-semibold uppercase text-[var(--hsn-accent-soft)]">Hari Ini</p>
             </div>
             <time class="today-date" :datetime="todayKey">{{ currentDateLabel }}</time>
           </div>
-          <p v-if="pending" class="today-empty" role="status">Memuat agenda hari ini...</p>
-          <p v-else-if="error" class="today-empty" role="alert">Agenda hari ini belum dapat dimuat.</p>
-          <p v-else-if="todayActivities.length === 0" class="today-empty">Belum ada kegiatan terjadwal untuk hari ini.
-          </p>
-          <ul v-else class="today-list">
+          <ul class="today-list">
             <li v-for="(activity, index) in todayActivities" :key="activity.id" class="today-item"
               :style="{ '--item-index': index }">
               <NuxtLink class="today-item__link" :to="`/kegiatan/${activity.slug}`">
                 <h3>{{ activity.title }}</h3>
-                <p>{{ activity.description || 'Detail kegiatan akan diumumkan.' }}</p>
+                <p v-if="activity.description">{{ activity.description }}</p>
               </NuxtLink>
               <div class="today-item__footer">
-                <span>{{ activity.location }}</span>
-                <span>{{ formatIndonesiaTimeRange(activity.startsAt, activity.endsAt) }}</span>
+                <span v-if="activity.location">{{ activity.location }}</span>
+                <span v-if="activity.startsAt">{{ formatIndonesiaTimeRange(activity.startsAt, activity.endsAt) }}</span>
               </div>
             </li>
           </ul>
@@ -150,7 +147,8 @@ useHead({
           kegiatan mendatang yang dijadwalkan. Pantau katalog untuk pembaruan.</p>
         <p v-if="!pending && !error && activitySearch.trim() && visibleActivities.length" class="search-results"
           role="status" aria-live="polite">{{ visibleActivities.length }} kegiatan ditemukan.</p>
-        <ActivityRoadmap v-if="!pending && !error && visibleActivities.length" :activities="visibleActivities" title-tag="h3" />
+        <ActivityRoadmap v-if="!pending && !error && visibleActivities.length" :activities="visibleActivities"
+          title-tag="h3" />
       </section>
 
     </section>

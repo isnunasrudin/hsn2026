@@ -21,14 +21,6 @@ const activityGroups = computed(() => groupByIndonesiaDate(props.activities).map
   ...group,
   datetime: group.key === 'undated' ? null : group.key
 })))
-const stateLabel = (state: string): string => ({
-  OPEN: 'Pendaftaran dibuka',
-  NOT_REQUIRED: 'Tanpa pendaftaran',
-  NOT_OPEN: 'Segera dibuka',
-  FULL: 'Kuota penuh',
-  CLOSED: 'Pendaftaran ditutup',
-  CANCELLED: 'Dibatalkan'
-}[state] ?? 'Informasi menyusul')
 const typeTone = (type: Activity['type']): string => type === 'LOMBA' ? 'is-teal' : 'is-gold'
 </script>
 
@@ -48,13 +40,12 @@ const typeTone = (type: Activity['type']): string => type === 'LOMBA' ? 'is-teal
             </div>
             <div class="roadmap-event__topline">
               <span class="agenda-status" :class="typeTone(activity.type)">{{ activity.organizer || activity.type }}</span>
-              <span class="agenda-time">{{ formatIndonesiaTimeRange(activity.startsAt, activity.endsAt) }}</span>
+              <span v-if="activity.startsAt" class="agenda-time">{{ formatIndonesiaTimeRange(activity.startsAt, activity.endsAt) }}</span>
             </div>
             <NuxtLink class="agenda-title-link" :to="`/kegiatan/${activity.slug}`"><component :is="titleTag">{{ activity.title }}</component></NuxtLink>
-            <p>{{ activity.description || 'Detail kegiatan dan persyaratan tersedia di halaman kegiatan.' }}</p>
+            <p v-if="activity.description">{{ activity.description }}</p>
             <div class="agenda-footer">
-              <span class="agenda-location">{{ activity.location || 'Lokasi menyusul' }}</span>
-              <span class="agenda-state">{{ stateLabel(activity.registrationState) }}</span>
+              <span v-if="activity.location" class="agenda-location">{{ activity.location }}</span>
               <NuxtLink class="agenda-detail" :to="`/kegiatan/${activity.slug}`">Detail <span aria-hidden="true">↗</span></NuxtLink>
             </div>
           </li>
@@ -97,11 +88,12 @@ const typeTone = (type: Activity['type']): string => type === 'LOMBA' ? 'is-teal
 .agenda-status.is-gold { color: #e9b74f; }
 @media (max-width: 640px) {
   .roadmap { padding-top: 24px; }
-  .roadmap::before { left: 20px; }
-  .roadmap-group { grid-template-columns: 42px minmax(0, 1fr); gap: 18px; }
-  .roadmap-marker { width: 42px; }
-  .roadmap-marker span { width: 42px; height: 42px; font-size: 10px; }
+  .roadmap::before { left: 8px; }
+  .roadmap-group { grid-template-columns: 20px minmax(0, 1fr); gap: 12px; }
+  .roadmap-marker { width: 20px; }
+  .roadmap-marker span { display: none; }
   .roadmap-date { align-items: flex-start; flex-direction: column; gap: 7px; }
+  .roadmap-date { margin-left: -24px; padding-left: 24px; }
   .roadmap-events { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .roadmap-event { min-height: 0; padding: 17px 16px 18px; }
   .roadmap-event p { min-height: 0; }

@@ -27,13 +27,13 @@ export const groupByIndonesiaDate = <T extends { startsAt: string | null }>(item
     const key = item.startsAt ? getIndonesiaDateKey(item.startsAt) : 'undated'
     const group = groups.get(key)
     if (group) group.items.push(item)
-    else groups.set(key, { key, date: formatIndonesiaDate(item.startsAt) || 'Jadwal belum ditentukan', items: [item] })
+    else groups.set(key, { key, date: formatIndonesiaDate(item.startsAt), items: [item] })
   }
   return [...groups.values()]
 }
 
 export const formatIndonesiaTimeRange = (startsAt: string | null, endsAt: string | null): string => {
-  if (!startsAt) return 'Waktu menyusul'
+  if (!startsAt) return ''
   const start = timeFormatter.format(new Date(startsAt))
   if (!endsAt) return `${start} WIB`
   const endDate = new Date(endsAt)
@@ -54,7 +54,7 @@ export const formatIndonesiaTimeRange = (startsAt: string | null, endsAt: string
 
 export const formatIndonesiaDateTimeRange = (startsAt: string | null, endsAt: string | null): string => startsAt
   ? `${formatIndonesiaDate(startsAt)} · ${formatIndonesiaTimeRange(startsAt, endsAt)}`
-  : 'Jadwal menyusul'
+  : ''
 
 export const formatIndonesiaDate = (value: string | Date | null): string => value
   ? new Intl.DateTimeFormat('id-ID', indonesiaDateOptions).format(new Date(value))
@@ -65,7 +65,7 @@ export const formatIndonesiaDateTime = (value: string | Date | null): string => 
   : ''
 
 export const formatIndonesiaDateRange = (startsAt: string | null, endsAt: string | null): string => {
-  if (!startsAt) return endsAt ? formatIndonesiaDate(endsAt) : 'Periode belum ditentukan'
+  if (!startsAt) return endsAt ? formatIndonesiaDate(endsAt) : ''
   const start = formatIndonesiaDate(startsAt)
   if (!endsAt) return start
   const end = formatIndonesiaDate(endsAt)

@@ -14,7 +14,7 @@ const files = reactive<Record<string, File | null>>({})
 const members = ref([{ name: '', identityNumber: '' }])
 const errorMessage = ref('')
 const isSubmitting = ref(false)
-const stateMessage = (state: string): string => ({ NOT_REQUIRED: 'Event ini tidak memerlukan pendaftaran peserta.', NOT_OPEN: 'Pendaftaran belum dibuka.', FULL: 'Kuota kegiatan sudah penuh.', CLOSED: 'Pendaftaran kegiatan sudah ditutup.', CANCELLED: 'Kegiatan ini dibatalkan.' }[state] ?? 'Pendaftaran saat ini belum tersedia.')
+const stateMessage = (state: string): string => ({ NOT_OPEN: 'Pendaftaran belum dibuka.', FULL: 'Kuota kegiatan sudah penuh.', CLOSED: 'Pendaftaran kegiatan sudah ditutup.', CANCELLED: 'Kegiatan ini dibatalkan.' }[state] ?? '')
 
 const setFile = (key: string, event: Event): void => {
   const input = event.target
@@ -33,7 +33,7 @@ const submit = async (): Promise<void> => { errorMessage.value = ''; isSubmittin
         <p class="text-[11px] font-semibold uppercase tracking-[.18em] text-[var(--hsn-accent-soft)]">Formulir pendaftaran</p>
         <h1 class="mt-3 text-3xl font-semibold tracking-[-.035em] text-[var(--hsn-text-primary)]">{{ activity?.title }}</h1>
         <p v-if="loadError" class="admin-alert-error mt-6 rounded-lg px-4 py-3 text-sm">Kegiatan tidak ditemukan.</p>
-        <p v-else-if="activity && activity.registrationState !== 'OPEN'" class="admin-alert-error mt-6 rounded-lg px-4 py-3 text-sm">{{ stateMessage(activity.registrationState) }}</p>
+        <p v-else-if="activity && activity.registrationState !== 'OPEN' && stateMessage(activity.registrationState)" class="admin-alert-error mt-6 rounded-lg px-4 py-3 text-sm">{{ stateMessage(activity.registrationState) }}</p>
         <form v-else class="mt-8 grid gap-5" @submit.prevent="submit">
           <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">{{ fieldLabel('registrant_name', 'Nama peserta / penanggung jawab') }}<input v-model="form.registrantName" class="admin-input" required type="text"></label>
           <div class="grid gap-5 sm:grid-cols-2">
