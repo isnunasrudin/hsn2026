@@ -31,6 +31,7 @@ export const getRegistrationState = (activity: Activity, used: number, now = new
   if (activity.type === 'EVENT') return 'NOT_REQUIRED'
   if (activity.status === 'CLOSED' || now > activity.registrationClosesAt) return 'CLOSED'
   if (now < activity.registrationOpensAt) return 'NOT_OPEN'
+  if (activity.externalRegistrationUrl) return 'OPEN'
   if (activity.capacity !== null && used >= activity.capacity) return 'FULL'
   return 'OPEN'
 }
@@ -69,7 +70,8 @@ export const publicActivityPayload = (activity: Activity & { registrationFields:
   registrationState: getRegistrationState(activity, used),
   minTeamMembers: activity.minTeamMembers,
   maxTeamMembers: activity.maxTeamMembers,
-  registrationFields: activity.registrationFields
+  registrationFields: activity.registrationFields,
+  externalRegistrationUrl: activity.externalRegistrationUrl
 })
 
 export const assertRegistrationAnswers = (activity: Activity & { registrationFields: RegistrationField[] }, answers: Record<string, unknown>): RegistrationAnswers => {

@@ -39,6 +39,7 @@ export default defineEventHandler(async (event) => {
   const configuredFields = parseRegistrationFields(activityRecord.registrationFields)
   const activity = { ...activityRecord, registrationFields: configuredFields.length === 0 ? defaultRegistrationFields(activityRecord.registrationMode) : configuredFields }
   if (activity.type === 'EVENT') throw createError({ statusCode: 422, statusMessage: 'Event tidak menggunakan pendaftaran peserta.' })
+  if (activity.externalRegistrationUrl) throw createError({ statusCode: 422, statusMessage: 'Pendaftaran lomba ini dilakukan melalui tautan eksternal.' })
 
   const multipart = await readMultipartFormData(event)
   const rawBody: Record<string, unknown> = multipart

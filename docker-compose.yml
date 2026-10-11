@@ -30,7 +30,7 @@ services:
     command:
       - sh
       - -c
-      - corepack enable && pnpm install --frozen-lockfile && pnpm build && exec node --env-file=/app/.env /app/.output/server/index.mjs
+      - corepack enable && pnpm install --frozen-lockfile && pnpm db:migrate && pnpm build && exec node --env-file=/app/.env /app/.output/server/index.mjs
     depends_on:
       db:
         condition: service_healthy

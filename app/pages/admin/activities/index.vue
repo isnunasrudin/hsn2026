@@ -38,6 +38,7 @@ type ActivityRecord = {
   minTeamMembers: number | null
   maxTeamMembers: number | null
   registrationFields: RegistrationField[]
+  externalRegistrationUrl: string | null
   juknis: { name: string | null; mimeType: string | null; size: number | null; url: string } | null
   status: ActivityStatus
 }
@@ -84,6 +85,7 @@ const form = reactive({
   maxTeamMembers: '',
   status: 'DRAFT' as ActivityStatus,
   registrationFields: [] as RegistrationField[],
+  externalRegistrationUrl: '',
   juknisFile: null as File | null
 })
 
@@ -183,6 +185,7 @@ const resetForm = (): void => {
   form.maxTeamMembers = ''
   form.status = 'DRAFT'
   form.registrationFields = []
+  form.externalRegistrationUrl = ''
   form.juknisFile = null
   selectedOperatorIds.value = []
 }
@@ -251,6 +254,7 @@ const payload = () => ({
   minTeamMembers: isRegistrationActivity.value && form.registrationMode === 'TEAM' && form.minTeamMembers ? Number(form.minTeamMembers) : null,
   maxTeamMembers: isRegistrationActivity.value && form.registrationMode === 'TEAM' && form.maxTeamMembers ? Number(form.maxTeamMembers) : null,
   registrationFields: isRegistrationActivity.value ? form.registrationFields : [],
+  externalRegistrationUrl: isRegistrationActivity.value && form.externalRegistrationUrl.trim() ? form.externalRegistrationUrl.trim() : null,
   status: form.status
 })
 
@@ -331,6 +335,7 @@ const editActivity = async (activity: ActivityRecord): Promise<void> => {
   form.maxTeamMembers = activity.maxTeamMembers?.toString() ?? ''
   form.status = activity.status
   form.registrationFields = activity.registrationFields.map(field => ({ ...field, options: field.options ? [...field.options] : [] }))
+  form.externalRegistrationUrl = activity.externalRegistrationUrl ?? ''
   for (const field of form.registrationFields) {
     if (systemFieldKeys.includes(field.key)) inactiveSystemFields.set(field.key, { ...field })
   }
@@ -400,6 +405,7 @@ const updateActivity = async (): Promise<void> => {
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Selesai kegiatan<input v-model="form.endsAt" class="admin-input" type="datetime-local"></label>
       <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Pendaftaran dibuka<input v-model="form.registrationOpensAt" class="admin-input" required type="datetime-local"></label>
       <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Pendaftaran ditutup<input v-model="form.registrationClosesAt" class="admin-input" required type="datetime-local"></label>
+      <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)] sm:col-span-2">Tautan pendaftaran eksternal (opsional)<input v-model="form.externalRegistrationUrl" class="admin-input" type="url" inputmode="url" placeholder="https://forms.gle/..." autocomplete="url"><span class="text-xs leading-5 text-[var(--hsn-text-muted)]">Isi jika pendaftaran dilakukan melalui Google Forms atau situs lain. Kosongkan untuk memakai formulir pendaftaran internal.</span></label>
       <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Mode peserta<select v-model="form.registrationMode" class="admin-input"><option value="INDIVIDUAL">Individu</option><option value="TEAM">Tim</option></select></label>
       <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Mode kuota<select v-model="form.quotaMode" class="admin-input"><option value="REGISTRATION">Per pendaftaran</option><option value="PERSON">Per orang</option></select></label>
       <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Kapasitas<input v-model="form.capacity" class="admin-input" min="1" type="number" placeholder="Kosong = tanpa batas"></label>

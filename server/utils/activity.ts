@@ -37,6 +37,7 @@ const activityFieldsSchema = z.object({
   minTeamMembers: z.number().int().positive().nullable(),
   maxTeamMembers: z.number().int().positive().nullable(),
   registrationFields: z.array(registrationFieldSchema).max(30),
+  externalRegistrationUrl: z.string().trim().url().refine(value => value.startsWith('http://') || value.startsWith('https://'), 'Tautan pendaftaran harus menggunakan HTTP atau HTTPS.').nullable().default(null),
   status: z.enum(activityStatuses)
 })
 
@@ -78,6 +79,9 @@ const validateActivityFields = (value: z.infer<typeof activityFieldsSchema>, con
   }
   if (value.type === 'EVENT' && value.registrationFields.length > 0) {
     context.addIssue({ code: 'custom', path: ['registrationFields'], message: 'Event tidak dapat memiliki field pendaftaran.' })
+  }
+  if (value.type === 'EVENT' && value.externalRegistrationUrl) {
+    context.addIssue({ code: 'custom', path: ['externalRegistrationUrl'], message: 'Tautan pendaftaran eksternal hanya tersedia untuk lomba.' })
   }
 }
 
