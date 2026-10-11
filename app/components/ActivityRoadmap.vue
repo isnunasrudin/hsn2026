@@ -218,7 +218,7 @@ const typeTone = (type: Activity['type']): string => type === 'LOMBA' ? 'is-teal
   margin: 0 0 9px;
   color: #f4f1e9;
   font-size: clamp(1.05rem, 2vw, 1.35rem);
-  font-weight: 400;
+  font-weight: 500;
   letter-spacing: -.035em;
 }
 
@@ -245,7 +245,7 @@ const typeTone = (type: Activity['type']): string => type === 'LOMBA' ? 'is-teal
   min-height: 44px;
   margin: 0;
   overflow: hidden;
-  color: rgba(203, 217, 212, .67);
+  color: #d2d2d2;
   font-size: 12px;
   line-height: 1.6;
   -webkit-box-orient: vertical;
