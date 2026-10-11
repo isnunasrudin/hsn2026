@@ -157,6 +157,13 @@ const toLocalInput = (value: string | null): string => {
 
 const toIso = (value: string): string => new Date(value).toISOString()
 
+const syncEndOfDay = (event: Event, endField: 'endsAt' | 'registrationClosesAt'): void => {
+  if (!(event.currentTarget instanceof HTMLInputElement)) return
+  const [date] = event.currentTarget.value.split('T')
+  if (!date) return
+  form[endField] = `${date}T23:59`
+}
+
 const eventRegistrationWindow = (): { opensAt: string; closesAt: string } => {
   const startsAt = new Date(form.startsAt)
   const endsAt = form.endsAt ? new Date(form.endsAt) : new Date(startsAt.getTime() + 60 * 60 * 1000)
@@ -405,9 +412,9 @@ const updateActivity = async (): Promise<void> => {
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Urutan tampil<input v-model="form.displayOrder" class="admin-input" min="0" type="number"></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)] sm:col-span-2">Deskripsi<textarea v-model="form.description" class="admin-input min-h-24" rows="3"></textarea></label>
       <div class="grid gap-3 rounded-lg border border-[var(--hsn-border-subtle)] p-4 sm:col-span-2"><div><p class="text-sm font-medium text-[var(--hsn-text-secondary)]">Juknis kegiatan</p><p class="mt-1 text-xs leading-5 text-[var(--hsn-text-muted)]">PDF, DOC, atau DOCX maksimal 10 MB. File baru akan menggantikan juknis lama setelah disimpan.</p></div><div v-if="selectedActivity?.juknis" class="flex flex-wrap items-center gap-3 rounded-lg bg-[var(--hsn-surface-secondary)] px-3 py-2 text-sm"><a class="admin-link truncate" :href="selectedActivity.juknis.url" target="_blank" rel="noopener">{{ selectedActivity.juknis.name }}</a><button class="admin-button admin-button-danger px-3 py-2 text-xs" type="button" @click="deleteJuknis">Hapus juknis</button></div><input class="admin-input file:mr-3 file:rounded-md file:border-0 file:bg-[var(--hsn-accent-primary)] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-[#071c1e]" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" @change="selectJuknis"></div>
-      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Mulai kegiatan<input v-model="form.startsAt" class="admin-input" required type="datetime-local"></label>
+      <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Mulai kegiatan<input v-model="form.startsAt" class="admin-input" required type="datetime-local" @input="syncEndOfDay($event, 'endsAt')"></label>
       <label class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Selesai kegiatan<input v-model="form.endsAt" class="admin-input" type="datetime-local"></label>
-      <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Pendaftaran dibuka<input v-model="form.registrationOpensAt" class="admin-input" required type="datetime-local"></label>
+      <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Pendaftaran dibuka<input v-model="form.registrationOpensAt" class="admin-input" required type="datetime-local" @input="syncEndOfDay($event, 'registrationClosesAt')"></label>
       <label v-if="isRegistrationActivity" class="grid gap-2 text-sm text-[var(--hsn-text-secondary)]">Pendaftaran ditutup<input v-model="form.registrationClosesAt" class="admin-input" required type="datetime-local"></label>
       <div v-if="isRegistrationActivity" class="grid gap-3 sm:col-span-2">
         <label class="flex items-center gap-3 text-sm text-[var(--hsn-text-secondary)]"><input v-model="form.useExternalRegistration" class="size-4 accent-[var(--hsn-accent-primary)]" type="checkbox"><span>Gunakan tautan pendaftaran eksternal</span></label>
