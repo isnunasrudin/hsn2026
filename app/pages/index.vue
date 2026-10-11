@@ -110,9 +110,8 @@ useHead({
         <section v-if="todayActivities?.length > 0" class="today-section text-left" aria-labelledby="today-title"
           aria-live="polite">
           <div class="today-heading">
-            <div class="today-heading__title">
-              <p class="eyebrow text-xs font-semibold uppercase text-[var(--hsn-accent-soft)]">Agenda utama</p>
-              <h2 id="today-title" class="today-title">Hari ini</h2>
+            <div class="today-heading__title my-auto">
+              <h2 id="today-title" class="today-title eyebrow">Agenda Hari Ini</h2>
               <span v-if="hasOngoingActivities" class="today-live is-active"><span class="today-live__dot"
                   aria-hidden="true"></span>Sedang berlangsung</span>
             </div>
