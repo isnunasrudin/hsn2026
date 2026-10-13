@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onBeforeRouteLeave } from 'vue-router'
 import hsnLogo from '~/assets/images/hsn2026.webp'
 import { formatIndonesiaDate, formatIndonesiaTimeRange, getIndonesiaDateKey } from '~/utils/date'
 
@@ -24,11 +25,13 @@ const activityFilters: { value: ActivityFilter; label: string }[] = [
 
 const { data, pending, error } = await useFetch<{ activities: Activity[] }>('/api/public/activities')
 const currentTime = useState('landing-current-time', () => new Date().toISOString())
+const landingScrollPosition = useState<number | null>('landing-scroll-position', () => null)
+const restoreLandingScroll = useState('landing-restore-scroll', () => false)
 let clockInterval: ReturnType<typeof setInterval> | undefined
 
 const publicActivities = computed(() => data.value?.activities ?? [])
-const activitySearch = ref('')
-const activityFilter = ref<ActivityFilter>('ALL')
+const activitySearch = useState('landing-activity-search', () => '')
+const activityFilter = useState<ActivityFilter>('landing-activity-filter', () => 'ALL')
 const activitiesByTime = (activities: Activity[]): Activity[] => [...activities].sort((a, b) => {
   const aStart = a.startsAt ? new Date(a.startsAt).getTime() : Number.POSITIVE_INFINITY
   const bStart = b.startsAt ? new Date(b.startsAt).getTime() : Number.POSITIVE_INFINITY
@@ -66,7 +69,23 @@ const isCurrentlyOngoing = (activity: Activity): boolean => {
 }
 const hasOngoingActivities = computed(() => todayActivities.value.some(isCurrentlyOngoing))
 const currentDateLabel = computed(() => formatIndonesiaDate(currentTime.value))
+
+onBeforeRouteLeave((to) => {
+  if (!import.meta.client) return
+  if (to.path.startsWith('/kegiatan/')) {
+    landingScrollPosition.value = window.scrollY
+    restoreLandingScroll.value = true
+  }
+})
+
 onMounted(() => {
+  if (restoreLandingScroll.value && landingScrollPosition.value !== null) {
+    const scrollPosition = landingScrollPosition.value
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollPosition)
+      restoreLandingScroll.value = false
+    })
+  }
   clockInterval = setInterval(() => { currentTime.value = new Date().toISOString() }, 30_000)
 })
 
